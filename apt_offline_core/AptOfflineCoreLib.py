@@ -30,8 +30,12 @@ import pydoc
 import zipfile
 import random  # to generate random directory names for installing multiple bundles in on go
 import tempfile
+import time
+import json
+import glob
 import socket
 import subprocess
+import shlex
 import threading
 import queue
 import http.client
@@ -2870,6 +2874,45 @@ def setter(args):
             sys.exit(1)
 
 
+def _ssh_run(host, cmd):
+    remote_cmd_str = " ".join(shlex.quote(c) for c in cmd)
+    subprocess.run(["ssh", "-t", host, remote_cmd_str], check=True)
+
+
+def _detect_transfer_method(host):
+    if shutil.which("rsync"):
+        result = subprocess.run(
+            ["ssh", host, "which rsync"],
+            capture_output=True
+        )
+        if result.returncode == 0:
+            return "rsync"
+    return "scp"
+
+
+def _transfer_get(method, host, remote_path, local_path):
+    if method == "rsync":
+        subprocess.run(["rsync", "-avP", "%s:%s" % (host, remote_path), local_path], check=True)
+    else:
+        subprocess.run(["scp", "%s:%s" % (host, remote_path), local_path], check=True)
+
+
+def _transfer_put(method, host, local_path, remote_path):
+    if method == "rsync":
+        subprocess.run(["rsync", "-avP", local_path, "%s:%s" % (host, remote_path)], check=True)
+    else:
+        subprocess.run(["scp", local_path, "%s:%s" % (host, remote_path)], check=True)
+
+
+def _latest_state(work_dir):
+    states = sorted(glob.glob(os.path.join(work_dir, "apt-remote-*.state")))
+    if not states:
+        log.err("No pending state found in %s\n" % work_dir)
+        sys.exit(1)
+    with open(states[-1]) as f:
+        return json.load(f)
+
+
 def main():
     """Here we basically do the sanity checks, some validations
     and then accordingly call the corresponding functions.
@@ -3201,6 +3244,12 @@ def main():
         help="Perform strict checksum validaton for downloaded .deb files",
         action="store_true",
     )
+
+    # REMOTE command options
+    #
+    from apt_offline_remote import AptOfflineRemoteLib
+    AptOfflineRemoteLib.register_subparser(subparsers, global_options)
+
     if len(sys.argv) <= 1:
         sys.argv.append("--help")
 

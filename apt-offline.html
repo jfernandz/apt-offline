@@ -33,10 +33,10 @@ It can also fetch bug reports for the packages that are downloaded.
 <P>
 
 Unless the -h/-v or --help/--version options are given, one of the
-<B>get, set</B>
+<B>get, set, install</B>
 
 or
-<B>install</B>
+<B>remote</B>
 
 commands must be provided.
 <P>
@@ -211,6 +211,111 @@ Path to filesystem where we want the source packages to be installed to. Default
 <P>
 </DL>
 <A NAME="lbAH">&nbsp;</A>
+<H3>remote [SSH_HOST | --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--no-sudo] [--reboot] [--work-dir DIR] [--fetch | --download | --finish-install]</H3>
+
+<P>
+<P>
+
+<B>remote</B>
+
+automates the full set/get/install pipeline against a machine reachable over SSH,
+eliminating the need for manual multi-step scripting.
+The local machine must have internet connectivity; the remote machine need only
+have
+<B>apt-offline</B>
+
+installed.
+<P>
+<B>SSH_HOST</B>
+
+is the target machine, specified as an SSH alias from
+<I>~/.ssh/config</I>
+
+or as
+<I>[user@]hostname</I>
+
+as accepted by
+<B><A HREF="/cgi-bin/man/man2html?1+ssh">ssh</A></B>(1).
+
+Mutually exclusive with
+<B>--hosts-list</B>.
+
+<P>
+<DL COMPACT>
+<DT><B>--hosts-list FILE</B><DD>
+Text file containing one SSH host per line.
+Lines starting with
+<B>#</B>
+
+and blank lines are ignored.
+Applies the requested operation to all listed hosts in sequence,
+reporting a per-host summary at the end.
+Mutually exclusive with
+<B>SSH_HOST</B>.
+
+<P>
+<DT><B>--update</B><DD>
+Generate and apply an APT database update on the remote machine.
+<P>
+<DT><B>--upgrade</B><DD>
+Download and apply upgradable packages on the remote machine.
+<P>
+<DT><B>--dist-upgrade</B><DD>
+Perform a full dist-upgrade on the remote machine.
+<P>
+<DT><B>--install-packages [PKG...PKG_N]</B><DD>
+Packages to install on the remote machine.
+<P>
+<DT><B>--no-sudo</B><DD>
+Do not prefix remote commands with sudo. Use when connecting as root.
+<P>
+<DT><B>--reboot</B><DD>
+Reboot the remote machine after a successful operation.
+<P>
+<DT><B>--work-dir DIR</B><DD>
+Local directory under which per-host working directories are created to store
+signature and bundle files.
+When omitted, files are kept under
+<B>/tmp/apt-offline-remote/SSH_HOST/</B>
+
+and persist until the next reboot of the local machine.
+Each run produces a uniquely timestamped pair of files, making parallel
+execution against multiple hosts and bundle reuse both safe.
+<P>
+<DT><B>--fetch</B><DD>
+Phase 1: connect to the remote, generate the signature file and fetch it
+locally. Saves a state file alongside the signature so subsequent phases
+know which operation was originally requested.
+<P>
+<DT><B>--download</B><DD>
+Phase 2: run
+<B>apt-offline get</B>
+
+locally to download packages and produce the bundle, using the signature
+from the latest
+<B>--fetch</B>
+
+run. Intended for use on a good internet connection after
+<B>--fetch</B>
+
+has completed.
+<P>
+<DT><B>--finish-install</B><DD>
+Phase 3: push the bundle produced by
+<B>--download</B>
+
+to the remote, install it with
+<B>apt-offline install</B>
+
+and run the corresponding
+<B>apt-get</B>
+
+operation. The operation type is read from the state file written by
+<B>--fetch</B>.
+
+<P>
+</DL>
+<A NAME="lbAI">&nbsp;</A>
 <H2>GLOBAL OPTIONS</H2>
 
 <DL COMPACT>
@@ -225,7 +330,7 @@ Display the version of the program
 <P>
 <P>
 </DL>
-<A NAME="lbAI">&nbsp;</A>
+<A NAME="lbAJ">&nbsp;</A>
 <H2>EXAMPLES</H2>
 
 <DL COMPACT>
@@ -325,6 +430,16 @@ deb <A HREF="http://security.debian.org">http://security.debian.org</A> testing-
 <B>(Security Updates for Debian Testing)</B>
 
 <P>
+<DT><B>apt-offline remote SSH_HOST</B>
+
+<DD>
+This command automates the entire set/get/install workflow over SSH.
+The local machine downloads the required data and pushes it to the remote.
+At least one of --update, --upgrade, --dist-upgrade or --install-packages must be specified.
+<P>
+<B>Example: apt-offline remote myserver --update --upgrade</B>
+
+<P>
 <DT>Sequence 1: The following set of commands, when run in sequence, will update a disconnected machine.<DD>
 <P>
 <B>apt-offline set update.sig --update</B>
@@ -371,7 +486,7 @@ in order, further running
 will result in 0 bytes of additional download.
 <P>
 </DL>
-<A NAME="lbAJ">&nbsp;</A>
+<A NAME="lbAK">&nbsp;</A>
 <H2>AUTHOR</H2>
 
 <B>apt-offline is written by Ritesh Raj Sarraf (<A HREF="mailto:rrs@researchut.com">rrs@researchut.com</A>)</B>
@@ -384,7 +499,7 @@ or else, send an email to me at
 <B><A HREF="mailto:rrs@researchut.com">rrs@researchut.com</A></B>
 
 <P>
-<A NAME="lbAK">&nbsp;</A>
+<A NAME="lbAL">&nbsp;</A>
 <H2>SEE ALSO</H2>
 
 <A HREF="/cgi-bin/man/man2html?8+apt-get">apt-get</A>(8),
@@ -392,7 +507,7 @@ or else, send an email to me at
 <A HREF="/cgi-bin/man/man2html?8+dpkg">dpkg</A>(8),
 <A HREF="/cgi-bin/man/man2html?8+aptitude">aptitude</A>(8),
 <P>
-<A NAME="lbAL">&nbsp;</A>
+<A NAME="lbAM">&nbsp;</A>
 <H2>DEDICATION</H2>
 
 This software is dedicated to the memory of my father Santosh Kumar Sarraf. We miss you a lot.
@@ -408,17 +523,18 @@ This software is dedicated to the memory of my father Santosh Kumar Sarraf. We m
 <DT><A HREF="#lbAE">set FILENAME [-h] [--install-packages PKG...PKG_N] [--install-src-packages PKG...PKG_N] --src-build-dep [--release release_name] [--update] [--upgrade] [--upgrade-type upgrade]</A><DD>
 <DT><A HREF="#lbAF">get FILENAME [-h] [--socket-timeout ] [-d / --download-dir] [-s / --cache-dir] [--no-checksum] [-t / --threads ] [--bundle] [--bug-reports] [--proxy-host] [--proxy-port] [--https-cert-file --https-key-file] [--http-basicauth] [--disable-cert-check]</A><DD>
 <DT><A HREF="#lbAG">install FILE/FOLDER [-h] [--skip-bug-reports ] [--install-src-path PATH] [--allow-unauthenticated]</A><DD>
+<DT><A HREF="#lbAH">remote [SSH_HOST | --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--no-sudo] [--reboot] [--work-dir DIR] [--fetch | --download | --finish-install]</A><DD>
 </DL>
-<DT><A HREF="#lbAH">GLOBAL OPTIONS</A><DD>
-<DT><A HREF="#lbAI">EXAMPLES</A><DD>
-<DT><A HREF="#lbAJ">AUTHOR</A><DD>
-<DT><A HREF="#lbAK">SEE ALSO</A><DD>
-<DT><A HREF="#lbAL">DEDICATION</A><DD>
+<DT><A HREF="#lbAI">GLOBAL OPTIONS</A><DD>
+<DT><A HREF="#lbAJ">EXAMPLES</A><DD>
+<DT><A HREF="#lbAK">AUTHOR</A><DD>
+<DT><A HREF="#lbAL">SEE ALSO</A><DD>
+<DT><A HREF="#lbAM">DEDICATION</A><DD>
 </DL>
 <HR>
 This document was created by
 <A HREF="/cgi-bin/man/man2html">man2html</A>,
 using the manual pages.<BR>
-Time: 14:49:28 GMT, February 08, 2025
+Time: 09:34:13 GMT, April 27, 2026
 </BODY>
 </HTML>
