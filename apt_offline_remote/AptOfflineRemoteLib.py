@@ -62,8 +62,8 @@ def _remote_single(host, args, log):
     # ------------------------------------------------------------------ phase 2
     if phase == "download":
         state = _latest_state(work_dir)
-        local_sig = os.path.join(work_dir, state["sig"])
-        local_bundle = os.path.join(work_dir, state["bundle"])
+        local_sig = os.path.join(work_dir, os.path.basename(state["sig"]))
+        local_bundle = os.path.join(work_dir, os.path.basename(state["bundle"]))
         log.msg("==> Creating bundle from %s...\n" % state["sig"])
         subprocess.run(
             ["sudo", "apt-offline", "get", "--bundle", local_bundle, local_sig],
@@ -78,8 +78,9 @@ def _remote_single(host, args, log):
     if phase == "finish-install":
         state = _latest_state(work_dir)
         sudo_prefix = _detect_sudo(host)
-        local_bundle = os.path.join(work_dir, state["bundle"])
+        local_bundle = os.path.join(work_dir, os.path.basename(state["bundle"]))
         remote_bundle = state["bundle"]
+        _ssh_run(host, ["mkdir", "-p", ".cache/apt-offline"])
         log.msg("==> Detecting transfer method...\n")
         transfer = _detect_transfer_method(host)
         log.msg("==> Using %s for file transfers\n" % transfer)
@@ -105,11 +106,12 @@ def _remote_single(host, args, log):
     # --------------------------------------------------- phase 1 / full pipeline
     sudo_prefix = _detect_sudo(host)
     timestamp = int(time.time())
-    remote_sig = "apt-remote-%s.sig" % timestamp
-    remote_bundle = "bundle-%s.zip" % timestamp
-    local_sig = os.path.join(work_dir, remote_sig)
-    local_bundle = os.path.join(work_dir, remote_bundle)
+    remote_sig = ".cache/apt-offline/apt-remote-%s.sig" % timestamp
+    remote_bundle = ".cache/apt-offline/bundle-%s.zip" % timestamp
+    local_sig = os.path.join(work_dir, "apt-remote-%s.sig" % timestamp)
+    local_bundle = os.path.join(work_dir, "bundle-%s.zip" % timestamp)
     local_state = os.path.join(work_dir, "apt-remote-%s.state" % timestamp)
+    _ssh_run(host, ["mkdir", "-p", ".cache/apt-offline"])
 
     log.msg("==> Detecting transfer method...\n")
     transfer = _detect_transfer_method(host)
