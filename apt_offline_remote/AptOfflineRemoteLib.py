@@ -1,17 +1,61 @@
+import argparse
 import glob
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 from apt_offline_core.AptOfflineCoreLib import (
     _detect_transfer_method,
-    _latest_state,
     _ssh_run,
     _transfer_get,
     _transfer_put,
+    fetcher,
 )
+
+_REMOTE_CACHE = ".cache/apt-offline-remote"
+
+
+def _latest_state(work_dir):
+    states = sorted(glob.glob(os.path.join(work_dir, "apt-remote-*.state")))
+    if not states:
+        log.err("No pending state found in %s\n" % work_dir)
+        sys.exit(1)
+    with open(states[-1]) as f:
+        return json.load(f)
+
+
+def _run_fetcher(sig_path, bundle_path):
+    tmpdir = tempfile.mkdtemp(prefix="apt-offline-remote-")
+    saved_cwd = os.getcwd()
+    try:
+        try:
+            fetcher(argparse.Namespace(
+                get=sig_path,
+                bundle_file=bundle_path,
+                socket_timeout=30,
+                download_dir=tmpdir,
+                cache_dir=None,
+                disable_md5check=False,
+                num_of_threads=1,
+                proxy_host=None,
+                proxy_port=None,
+                https_cert_file=None,
+                https_key_file=None,
+                http_basicauth=[],
+                disable_cert_check=False,
+                deb_bugs=False,
+                quiet=False,
+            ))
+        except SystemExit as e:
+            if e.code not in (0, None):
+                raise RuntimeError("apt-offline get failed (exit %s)" % e.code)
+    finally:
+        os.chdir(saved_cwd)
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def _detect_sudo(host):
@@ -46,7 +90,7 @@ def _remote_single(host, args, log):
     elif args.temp:
         base_dir = "/tmp/apt-offline-remote"
     else:
-        base_dir = os.path.expanduser("~/.cache/apt-offline")
+        base_dir = os.path.expanduser("~/.cache/apt-offline-remote")
     work_dir = os.path.join(base_dir, host)
 
     phase = args.remote_phase  # "fetch", "download", "finish-install", or None (full)
@@ -71,13 +115,11 @@ def _remote_single(host, args, log):
     # ------------------------------------------------------------------ phase 2
     if phase == "download":
         state = _latest_state(work_dir)
-        local_sig = os.path.join(work_dir, os.path.basename(state["sig"]))
-        local_bundle = os.path.join(work_dir, os.path.basename(state["bundle"]))
-        log.msg("==> Creating bundle from %s...\n" % state["sig"])
-        subprocess.run(
-            ["sudo", "apt-offline", "get", "--bundle", local_bundle, local_sig],
-            check=True
-        )
+        ts = state["timestamp"]
+        local_sig = os.path.join(work_dir, "apt-remote-%s.sig" % ts)
+        local_bundle = os.path.join(work_dir, "bundle-%s.zip" % ts)
+        log.msg("==> Creating bundle from %s...\n" % local_sig)
+        _run_fetcher(local_sig, local_bundle)
         log.success("Bundle created: %s\n" % local_bundle)
         if keep is not None:
             _cleanup_host(work_dir, keep)
@@ -87,9 +129,10 @@ def _remote_single(host, args, log):
     if phase == "finish-install":
         state = _latest_state(work_dir)
         sudo_prefix = _detect_sudo(host)
-        local_bundle = os.path.join(work_dir, os.path.basename(state["bundle"]))
-        remote_bundle = state["bundle"]
-        _ssh_run(host, ["mkdir", "-p", ".cache/apt-offline"])
+        ts = state["timestamp"]
+        local_bundle = os.path.join(work_dir, "bundle-%s.zip" % ts)
+        remote_bundle = "%s/bundle-%s.zip" % (_REMOTE_CACHE, ts)
+        _ssh_run(host, ["mkdir", "-p", _REMOTE_CACHE])
         log.msg("==> Detecting transfer method...\n")
         transfer = _detect_transfer_method(host)
         log.msg("==> Using %s for file transfers\n" % transfer)
@@ -122,12 +165,12 @@ def _remote_single(host, args, log):
 
     sudo_prefix = _detect_sudo(host)
     timestamp = int(time.time())
-    remote_sig = ".cache/apt-offline/apt-remote-%s.sig" % timestamp
-    remote_bundle = ".cache/apt-offline/bundle-%s.zip" % timestamp
+    remote_sig = "%s/apt-remote-%s.sig" % (_REMOTE_CACHE, timestamp)
+    remote_bundle = "%s/bundle-%s.zip" % (_REMOTE_CACHE, timestamp)
     local_sig = os.path.join(work_dir, "apt-remote-%s.sig" % timestamp)
     local_bundle = os.path.join(work_dir, "bundle-%s.zip" % timestamp)
     local_state = os.path.join(work_dir, "apt-remote-%s.state" % timestamp)
-    _ssh_run(host, ["mkdir", "-p", ".cache/apt-offline"])
+    _ssh_run(host, ["mkdir", "-p", _REMOTE_CACHE])
 
     log.msg("==> Detecting transfer method...\n")
     transfer = _detect_transfer_method(host)
@@ -154,8 +197,7 @@ def _remote_single(host, args, log):
 
     with open(local_state, "w") as f:
         json.dump({
-            "sig": remote_sig,
-            "bundle": remote_bundle,
+            "timestamp": timestamp,
             "update": args.remote_update,
             "upgrade": args.remote_upgrade,
             "dist_upgrade": args.remote_dist_upgrade,
@@ -170,10 +212,7 @@ def _remote_single(host, args, log):
         return
 
     log.msg("==> [3/5] Creating bundle locally...\n")
-    subprocess.run(
-        ["sudo", "apt-offline", "get", "--bundle", local_bundle, local_sig],
-        check=True
-    )
+    _run_fetcher(local_sig, local_bundle)
 
     log.msg("==> [4/5] Sending bundle to remote...\n")
     _transfer_put(transfer, host, local_bundle, remote_bundle)
@@ -321,7 +360,7 @@ def register_subparser(subparsers, global_options):
     work_dir_group.add_argument(
         "--work-dir",
         dest="work_dir",
-        help="Local directory for sig/bundle files (default: ~/.cache/apt-offline)",
+        help="Local base directory for sig/bundle files (default: ~/.cache/apt-offline-remote)",
         action="store",
         type=str,
         default=None,

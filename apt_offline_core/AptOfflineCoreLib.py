@@ -1276,7 +1276,7 @@ def fetcher(args):
             sys.exit(1)
         else:
             try:
-                open(Str_BundleFile, "w")
+                open(Str_BundleFile, "w").close()
             except IOError:
                 log.err("Cannot write to file %s\n" % (Str_BundleFile))
                 sys.exit(1)
@@ -1463,7 +1463,8 @@ def fetcher(args):
     # It can be just debs or just package updates or both
     if Str_GetArg is not None:
         try:
-            raw_data_list = open(Str_GetArg, "r").readlines()
+            with open(Str_GetArg, "r") as f:
+                raw_data_list = f.readlines()
         except IOError as e:
             (errno, strerror) = e.args
             log.err("%s %s %s\n" % (errno, strerror, Str_GetArg))
