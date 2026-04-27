@@ -48,7 +48,6 @@ def _remote_single(host, args, log):
     else:
         base_dir = os.path.expanduser("~/.cache/apt-offline")
     work_dir = os.path.join(base_dir, host)
-    os.makedirs(work_dir, exist_ok=True)
 
     phase = args.remote_phase  # "fetch", "download", "finish-install", or None (full)
     keep = args.keep_latest
@@ -60,9 +59,14 @@ def _remote_single(host, args, log):
             and not args.remote_dist_upgrade
             and not args.remote_install_packages
             and keep is not None):
+        if not os.path.isdir(work_dir):
+            log.msg("==> Nothing to clean for %s (work dir does not exist)\n" % host)
+            return
         _cleanup_host(work_dir, keep)
         log.msg("==> Cleaned up work dir for %s (kept %d)\n" % (host, keep))
         return
+
+    os.makedirs(work_dir, exist_ok=True)
 
     # ------------------------------------------------------------------ phase 2
     if phase == "download":
