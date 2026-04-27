@@ -211,7 +211,7 @@ Path to filesystem where we want the source packages to be installed to. Default
 <P>
 </DL>
 <A NAME="lbAH">&nbsp;</A>
-<H3>remote [SSH_HOST | --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--reboot] [--work-dir DIR] [--keep-latest [N]] [--fetch | --download | --finish-install]</H3>
+<H3>remote [SSH_HOST | --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--reboot] [--work-dir DIR | --temp] [--keep-latest [N]] [--fetch | --download | --finish-install]</H3>
 
 <P>
 <P>
@@ -286,11 +286,27 @@ Reboot the remote machine after a successful operation.
 Local directory under which per-host working directories are created to store
 signature and bundle files.
 When omitted, files are kept under
-<B>/tmp/apt-offline-remote/SSH_HOST/</B>
+<B>~/.cache/apt-offline/SSH_HOST/</B>
 
-and persist until the next reboot of the local machine.
+and persist across reboots.
 Each run produces a uniquely timestamped pair of files, making parallel
 execution against multiple hosts and bundle reuse both safe.
+Mutually exclusive with
+<B>--temp</B>.
+
+<P>
+<DT><B>--temp</B><DD>
+Use
+<B>/tmp/apt-offline-remote/SSH_HOST/</B>
+
+as the working directory instead of the default cache location.
+Files placed under
+<I>/tmp</I>
+
+are lost on reboot.
+Mutually exclusive with
+<B>--work-dir</B>.
+
 <P>
 <DT><B>--keep-latest [N]</B><DD>
 After a successful operation, remove all but the
@@ -545,7 +561,7 @@ This software is dedicated to the memory of my father Santosh Kumar Sarraf. We m
 <DT><A HREF="#lbAE">set FILENAME [-h] [--install-packages PKG...PKG_N] [--install-src-packages PKG...PKG_N] --src-build-dep [--release release_name] [--update] [--upgrade] [--upgrade-type upgrade]</A><DD>
 <DT><A HREF="#lbAF">get FILENAME [-h] [--socket-timeout ] [-d / --download-dir] [-s / --cache-dir] [--no-checksum] [-t / --threads ] [--bundle] [--bug-reports] [--proxy-host] [--proxy-port] [--https-cert-file --https-key-file] [--http-basicauth] [--disable-cert-check]</A><DD>
 <DT><A HREF="#lbAG">install FILE/FOLDER [-h] [--skip-bug-reports ] [--install-src-path PATH] [--allow-unauthenticated]</A><DD>
-<DT><A HREF="#lbAH">remote [SSH_HOST | --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--reboot] [--work-dir DIR] [--keep-latest [N]] [--fetch | --download | --finish-install]</A><DD>
+<DT><A HREF="#lbAH">remote [SSH_HOST | --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--reboot] [--work-dir DIR | --temp] [--keep-latest [N]] [--fetch | --download | --finish-install]</A><DD>
 </DL>
 <DT><A HREF="#lbAI">GLOBAL OPTIONS</A><DD>
 <DT><A HREF="#lbAJ">EXAMPLES</A><DD>
@@ -557,6 +573,6 @@ This software is dedicated to the memory of my father Santosh Kumar Sarraf. We m
 This document was created by
 <A HREF="/cgi-bin/man/man2html">man2html</A>,
 using the manual pages.<BR>
-Time: 10:00:50 GMT, April 27, 2026
+Time: 13:15:27 GMT, April 27, 2026
 </BODY>
 </HTML>

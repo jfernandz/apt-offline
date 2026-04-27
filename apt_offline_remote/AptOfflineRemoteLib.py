@@ -41,7 +41,12 @@ def _cleanup_host(work_dir, keep):
 
 
 def _remote_single(host, args, log):
-    base_dir = args.work_dir if args.work_dir else "/tmp/apt-offline-remote"
+    if args.work_dir:
+        base_dir = args.work_dir
+    elif args.temp:
+        base_dir = "/tmp/apt-offline-remote"
+    else:
+        base_dir = os.path.expanduser("~/.cache/apt-offline")
     work_dir = os.path.join(base_dir, host)
     os.makedirs(work_dir, exist_ok=True)
 
@@ -299,14 +304,22 @@ def register_subparser(subparsers, global_options):
         action="store_true",
     )
 
-    parser_remote.add_argument(
+    work_dir_group = parser_remote.add_mutually_exclusive_group()
+    work_dir_group.add_argument(
         "--work-dir",
         dest="work_dir",
-        help="Local directory for sig/bundle files (default: /tmp/apt-offline-remote)",
+        help="Local directory for sig/bundle files (default: ~/.cache/apt-offline)",
         action="store",
         type=str,
         default=None,
         metavar="DIR",
+    )
+    work_dir_group.add_argument(
+        "--temp",
+        dest="temp",
+        help="Use /tmp/apt-offline-remote as the local working directory",
+        action="store_true",
+        default=False,
     )
 
     parser_remote.add_argument(
