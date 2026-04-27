@@ -2874,15 +2874,22 @@ def setter(args):
             sys.exit(1)
 
 
+def _run_quiet(cmd):
+    result = subprocess.run(cmd, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        sys.stderr.buffer.write(result.stderr)
+        raise subprocess.CalledProcessError(result.returncode, cmd)
+
+
 def _ssh_run(host, cmd):
     remote_cmd_str = " ".join(shlex.quote(c) for c in cmd)
-    subprocess.run(["ssh", "-t", host, remote_cmd_str], check=True)
+    _run_quiet(["ssh", "-o", "LogLevel=QUIET", host, remote_cmd_str])
 
 
 def _detect_transfer_method(host):
     if shutil.which("rsync"):
         result = subprocess.run(
-            ["ssh", host, "which rsync"],
+            ["ssh", "-o", "LogLevel=QUIET", host, "which rsync"],
             capture_output=True
         )
         if result.returncode == 0:
@@ -2892,16 +2899,16 @@ def _detect_transfer_method(host):
 
 def _transfer_get(method, host, remote_path, local_path):
     if method == "rsync":
-        subprocess.run(["rsync", "-avP", "%s:%s" % (host, remote_path), local_path], check=True)
+        _run_quiet(["rsync", "-avP", "-e", "ssh -o LogLevel=QUIET", "%s:%s" % (host, remote_path), local_path])
     else:
-        subprocess.run(["scp", "%s:%s" % (host, remote_path), local_path], check=True)
+        _run_quiet(["scp", "-o", "LogLevel=QUIET", "%s:%s" % (host, remote_path), local_path])
 
 
 def _transfer_put(method, host, local_path, remote_path):
     if method == "rsync":
-        subprocess.run(["rsync", "-avP", local_path, "%s:%s" % (host, remote_path)], check=True)
+        _run_quiet(["rsync", "-avP", "-e", "ssh -o LogLevel=QUIET", local_path, "%s:%s" % (host, remote_path)])
     else:
-        subprocess.run(["scp", local_path, "%s:%s" % (host, remote_path)], check=True)
+        _run_quiet(["scp", "-o", "LogLevel=QUIET", local_path, "%s:%s" % (host, remote_path)])
 
 
 def _latest_state(work_dir):

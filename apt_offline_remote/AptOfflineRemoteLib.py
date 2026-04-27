@@ -16,10 +16,10 @@ from apt_offline_core.AptOfflineCoreLib import (
 
 def _detect_sudo(host):
     result = subprocess.run(
-        ["ssh", host, "id -u"],
+        ["ssh", "-o", "LogLevel=QUIET", host, "id -u"],
         capture_output=True, text=True
     )
-    if result.returncode == 0 and result.stdout.strip() == "0":
+    if result.returncode == 0 and result.stdout.strip().splitlines()[-1] == "0":
         return []
     return ["sudo"]
 
@@ -226,9 +226,9 @@ def remote(args):
     if len(hosts) > 1:
         log.msg("\n==> Batch summary: %d succeeded, %d failed\n" % (len(succeeded), len(failed)))
         for host in succeeded:
-            log.msg("    OK  %s\n" % host)
+            log.msg("   OK: %s\n" % host)
         for host in failed:
-            log.err("    ERR %s\n" % host)
+            log.err("%s\n" % host)
         if failed:
             sys.exit(1)
 
