@@ -113,6 +113,13 @@ def _remote_single(host, args, log):
         return
 
     # --------------------------------------------------- phase 1 / full pipeline
+    if (not args.remote_update
+            and not args.remote_upgrade
+            and not args.remote_dist_upgrade
+            and not args.remote_install_packages):
+        log.err("At least one of --update, --upgrade, --dist-upgrade or --install-packages must be specified\n")
+        raise SystemExit(1)
+
     sudo_prefix = _detect_sudo(host)
     timestamp = int(time.time())
     remote_sig = ".cache/apt-offline/apt-remote-%s.sig" % timestamp
