@@ -162,7 +162,7 @@ do strict checksum validation for .deb files. Instead, apt-offline copies the .d
 .IP "\fB\-\-install\-src\-path PATH\fP" 10
 Path to filesystem where we want the source packages to be installed to. Default will be a folder in your TEMPDIR.
 
-.SS remote [SSH_HOST | --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--no-sudo] [--reboot] [--work-dir DIR] [--fetch | --download | --finish-install]
+.SS remote [SSH_HOST | --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--reboot] [--work-dir DIR] [--keep-latest [N]] [--fetch | --download | --finish-install]
 
 .PP
 .B remote
@@ -205,8 +205,13 @@ Perform a full dist-upgrade on the remote machine.
 .IP "\fB\-\-install\-packages [PKG...PKG_N]\fP" 10
 Packages to install on the remote machine.
 
-.IP "\fB\-\-no\-sudo\fP" 10
-Do not prefix remote commands with sudo. Use when connecting as root.
+.PP
+Remote commands that require root privileges are automatically prefixed with
+.B sudo
+unless the connecting user is already root (detected by checking
+.B id -u
+on the remote).
+No flag is needed.
 
 .IP "\fB\-\-reboot\fP" 10
 Reboot the remote machine after a successful operation.
@@ -219,6 +224,16 @@ When omitted, files are kept under
 and persist until the next reboot of the local machine.
 Each run produces a uniquely timestamped pair of files, making parallel
 execution against multiple hosts and bundle reuse both safe.
+
+.IP "\fB\-\-keep\-latest [N]\fP" 10
+After a successful operation, remove all but the
+.I N
+most recent timestamped file sets (signature, bundle, and state) from the
+per-host working directory.
+.I N
+defaults to 1 when the flag is given without a value.
+When used without any operation flag or phase flag, performs a standalone
+cleanup only — no SSH connection is made.
 
 .IP "\fB\-\-fetch\fP" 10
 Phase 1: connect to the remote, generate the signature file and fetch it

@@ -7,3 +7,5 @@
 *.egg-info
 # magic environments
 .magic
+*.list
+updates/**/*

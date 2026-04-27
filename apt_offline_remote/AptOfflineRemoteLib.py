@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 import subprocess
@@ -13,16 +14,30 @@ from apt_offline_core.AptOfflineCoreLib import (
 )
 
 
-def _read_hosts_file(path):
-    hosts = []
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#"):
-                hosts.append(line)
-    if not hosts:
-        raise ValueError("No hosts found in %s" % path)
-    return hosts
+def _detect_sudo(host):
+    result = subprocess.run(
+        ["ssh", host, "id -u"],
+        capture_output=True, text=True
+    )
+    if result.returncode == 0 and result.stdout.strip() == "0":
+        return []
+    return ["sudo"]
+
+
+def _cleanup_host(work_dir, keep):
+    states = sorted(glob.glob(os.path.join(work_dir, "apt-remote-*.state")))
+    to_remove = states[:-keep] if keep > 0 else states
+    for state_path in to_remove:
+        ts = os.path.basename(state_path)[len("apt-remote-"):-len(".state")]
+        for path in [
+            os.path.join(work_dir, "apt-remote-%s.sig" % ts),
+            os.path.join(work_dir, "bundle-%s.zip" % ts),
+            state_path,
+        ]:
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
 
 
 def _remote_single(host, args, log):
@@ -31,6 +46,18 @@ def _remote_single(host, args, log):
     os.makedirs(work_dir, exist_ok=True)
 
     phase = args.remote_phase  # "fetch", "download", "finish-install", or None (full)
+    keep = args.keep_latest
+
+    # standalone cleanup — no phase, no operation flags
+    if (phase is None
+            and not args.remote_update
+            and not args.remote_upgrade
+            and not args.remote_dist_upgrade
+            and not args.remote_install_packages
+            and keep is not None):
+        _cleanup_host(work_dir, keep)
+        log.msg("==> Cleaned up work dir for %s (kept %d)\n" % (host, keep))
+        return
 
     # ------------------------------------------------------------------ phase 2
     if phase == "download":
@@ -43,12 +70,14 @@ def _remote_single(host, args, log):
             check=True
         )
         log.success("Bundle created: %s\n" % local_bundle)
+        if keep is not None:
+            _cleanup_host(work_dir, keep)
         return
 
     # ------------------------------------------------------------------ phase 3
     if phase == "finish-install":
         state = _latest_state(work_dir)
-        sudo_prefix = [] if state["no_sudo"] else ["sudo"]
+        sudo_prefix = _detect_sudo(host)
         local_bundle = os.path.join(work_dir, state["bundle"])
         remote_bundle = state["bundle"]
         log.msg("==> Detecting transfer method...\n")
@@ -69,10 +98,12 @@ def _remote_single(host, args, log):
         if args.reboot:
             log.msg("==> Rebooting %s...\n" % host)
             _ssh_run(host, sudo_prefix + ["reboot"])
+        if keep is not None:
+            _cleanup_host(work_dir, keep)
         return
 
     # --------------------------------------------------- phase 1 / full pipeline
-    sudo_prefix = [] if args.no_sudo else ["sudo"]
+    sudo_prefix = _detect_sudo(host)
     timestamp = int(time.time())
     remote_sig = "apt-remote-%s.sig" % timestamp
     remote_bundle = "bundle-%s.zip" % timestamp
@@ -109,12 +140,13 @@ def _remote_single(host, args, log):
             "upgrade": args.remote_upgrade,
             "dist_upgrade": args.remote_dist_upgrade,
             "install_packages": args.remote_install_packages or [],
-            "no_sudo": args.no_sudo,
         }, f, indent=2)
 
     if phase == "fetch":
         log.success("Signature fetched: %s\n" % local_sig)
         log.msg("==> Run 'apt-offline remote %s --download' to create the bundle when online\n" % host)
+        if keep is not None:
+            _cleanup_host(work_dir, keep)
         return
 
     log.msg("==> [3/5] Creating bundle locally...\n")
@@ -141,6 +173,21 @@ def _remote_single(host, args, log):
     if args.reboot:
         log.msg("==> Rebooting %s...\n" % host)
         _ssh_run(host, sudo_prefix + ["reboot"])
+
+    if keep is not None:
+        _cleanup_host(work_dir, keep)
+
+
+def _read_hosts_file(path):
+    hosts = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                hosts.append(line)
+    if not hosts:
+        raise ValueError("No hosts found in %s" % path)
+    return hosts
 
 
 def remote(args):
@@ -244,13 +291,6 @@ def register_subparser(subparsers, global_options):
     )
 
     parser_remote.add_argument(
-        "--no-sudo",
-        dest="no_sudo",
-        help="Do not prefix remote commands with sudo (use when connecting as root)",
-        action="store_true",
-    )
-
-    parser_remote.add_argument(
         "--reboot",
         dest="reboot",
         help="Reboot the remote machine after a successful operation",
@@ -265,6 +305,17 @@ def register_subparser(subparsers, global_options):
         type=str,
         default=None,
         metavar="DIR",
+    )
+
+    parser_remote.add_argument(
+        "--keep-latest",
+        dest="keep_latest",
+        help="Keep only the N most recent operations per host (default: 1 if flag is given)",
+        nargs="?",
+        const=1,
+        default=None,
+        type=int,
+        metavar="N",
     )
 
     phase_group = parser_remote.add_mutually_exclusive_group()
