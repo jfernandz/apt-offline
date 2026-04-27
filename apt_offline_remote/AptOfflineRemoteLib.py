@@ -133,6 +133,8 @@ def _remote_single(host, args, log):
     transfer = _detect_transfer_method(host)
     log.msg("==> Using %s for file transfers\n" % transfer)
 
+    _ssh_run(host, sudo_prefix + ["mkdir", "-p", "/var/lib/apt/lists/partial"])
+
     steps = 2 if phase == "fetch" else 5
     log.msg("==> [1/%d] Generating signature on %s...\n" % (steps, host))
     set_cmd = sudo_prefix + ["apt-offline", "set"]
