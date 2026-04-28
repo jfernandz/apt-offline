@@ -286,7 +286,7 @@ Reboot the remote machine after a successful operation.
 Local directory under which per-host working directories are created to store
 signature and bundle files.
 When omitted, files are kept under
-<B>~/.cache/apt-offline/SSH_HOST/</B>
+<B>~/.cache/apt-offline-remote/SSH_HOST/</B>
 
 and persist across reboots.
 Each run produces a uniquely timestamped pair of files, making parallel
@@ -320,6 +320,20 @@ defaults to 1 when the flag is given without a value.
 When used without any operation flag or phase flag, performs a standalone
 cleanup only — no SSH connection is made.
 <P>
+</DL>
+<P>
+
+When none of the phase flags below is given,
+<B>remote</B>
+
+runs all three phases back-to-back in a single invocation.
+This is the simplest mode and requires the local machine to have internet
+connectivity throughout the operation.
+Use the individual phase flags only when the local machine must go offline
+between the signature fetch and the package download
+(e.g. to carry files on removable media to an air-gapped network).
+<P>
+<DL COMPACT>
 <DT><B>--fetch</B><DD>
 Phase 1: connect to the remote, generate the signature file and fetch it
 locally. Saves a state file alongside the signature so subsequent phases
@@ -475,8 +489,29 @@ This command automates the entire set/get/install workflow over SSH.
 The local machine downloads the required data and pushes it to the remote.
 At least one of --update, --upgrade, --dist-upgrade or --install-packages must be specified.
 <P>
-<B>Example: apt-offline remote myserver --update --upgrade</B>
+<B>One-shot (local machine stays online throughout):</B>
 
+<P>
+<B>apt-offline remote myserver --update --upgrade</B>
+
+<P>
+<B>Split workflow (local machine goes offline between phases):</B>
+
+<P>
+<B>apt-offline remote myserver --update --upgrade --fetch</B>
+
+<P>
+(Phase 1: generate and retrieve the signature. Run while connected to the remote.)
+<P>
+<B>apt-offline remote myserver --download</B>
+
+<P>
+(Phase 2: download packages locally. Run when internet is available.)
+<P>
+<B>apt-offline remote myserver --finish-install</B>
+
+<P>
+(Phase 3: push the bundle to the remote and complete installation.)
 <P>
 <DT>Sequence 1: The following set of commands, when run in sequence, will update a disconnected machine.<DD>
 <P>
@@ -573,6 +608,6 @@ This software is dedicated to the memory of my father Santosh Kumar Sarraf. We m
 This document was created by
 <A HREF="/cgi-bin/man/man2html">man2html</A>,
 using the manual pages.<BR>
-Time: 13:15:27 GMT, April 27, 2026
+Time: 04:23:11 GMT, April 28, 2026
 </BODY>
 </HTML>

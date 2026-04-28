@@ -10,6 +10,7 @@ import time
 
 from apt_offline_core.AptOfflineCoreLib import (
     _detect_transfer_method,
+    _latest_state,
     _ssh_run,
     _transfer_get,
     _transfer_put,
@@ -18,14 +19,6 @@ from apt_offline_core.AptOfflineCoreLib import (
 
 _REMOTE_CACHE = ".cache/apt-offline-remote"
 
-
-def _latest_state(work_dir):
-    states = sorted(glob.glob(os.path.join(work_dir, "apt-remote-*.state")))
-    if not states:
-        log.err("No pending state found in %s\n" % work_dir)
-        sys.exit(1)
-    with open(states[-1]) as f:
-        return json.load(f)
 
 
 def _run_fetcher(sig_path, bundle_path):
@@ -110,10 +103,10 @@ def _remote_single(host, args, log):
         log.msg("==> Cleaned up work dir for %s (kept %d)\n" % (host, keep))
         return
 
-    os.makedirs(work_dir, exist_ok=True)
-
     # ------------------------------------------------------------------ phase 2
     if phase == "download":
+        if not os.path.isdir(work_dir):
+            raise RuntimeError("no local state for %s — run --fetch first" % host)
         state = _latest_state(work_dir)
         ts = state["timestamp"]
         local_sig = os.path.join(work_dir, "apt-remote-%s.sig" % ts)
@@ -127,6 +120,8 @@ def _remote_single(host, args, log):
 
     # ------------------------------------------------------------------ phase 3
     if phase == "finish-install":
+        if not os.path.isdir(work_dir):
+            raise RuntimeError("no local state for %s — run --fetch first" % host)
         state = _latest_state(work_dir)
         sudo_prefix = _detect_sudo(host)
         ts = state["timestamp"]
@@ -162,6 +157,8 @@ def _remote_single(host, args, log):
             and not args.remote_install_packages):
         log.err("At least one of --update, --upgrade, --dist-upgrade or --install-packages must be specified\n")
         raise SystemExit(1)
+
+    os.makedirs(work_dir, exist_ok=True)
 
     sudo_prefix = _detect_sudo(host)
     timestamp = int(time.time())

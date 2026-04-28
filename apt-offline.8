@@ -220,7 +220,7 @@ Reboot the remote machine after a successful operation.
 Local directory under which per-host working directories are created to store
 signature and bundle files.
 When omitted, files are kept under
-.B ~/.cache/apt-offline/SSH_HOST/
+.B ~/.cache/apt-offline-remote/SSH_HOST/
 and persist across reboots.
 Each run produces a uniquely timestamped pair of files, making parallel
 execution against multiple hosts and bundle reuse both safe.
@@ -246,6 +246,16 @@ per-host working directory.
 defaults to 1 when the flag is given without a value.
 When used without any operation flag or phase flag, performs a standalone
 cleanup only — no SSH connection is made.
+
+.PP
+When none of the phase flags below is given,
+.B remote
+runs all three phases back-to-back in a single invocation.
+This is the simplest mode and requires the local machine to have internet
+connectivity throughout the operation.
+Use the individual phase flags only when the local machine must go offline
+between the signature fetch and the package download
+(e.g. to carry files on removable media to an air-gapped network).
 
 .IP "\fB\-\-fetch\fP" 10
 Phase 1: connect to the remote, generate the signature file and fetch it
@@ -367,7 +377,23 @@ This command automates the entire set/get/install workflow over SSH.
 The local machine downloads the required data and pushes it to the remote.
 At least one of \-\-update, \-\-upgrade, \-\-dist\-upgrade or \-\-install\-packages must be specified.
 
-.B Example: apt\-offline remote myserver \-\-update \-\-upgrade
+.B One-shot (local machine stays online throughout):
+
+.B apt\-offline remote myserver \-\-update \-\-upgrade
+
+.B Split workflow (local machine goes offline between phases):
+
+.B apt\-offline remote myserver \-\-update \-\-upgrade \-\-fetch
+
+(Phase 1: generate and retrieve the signature. Run while connected to the remote.)
+
+.B apt\-offline remote myserver \-\-download
+
+(Phase 2: download packages locally. Run when internet is available.)
+
+.B apt\-offline remote myserver \-\-finish\-install
+
+(Phase 3: push the bundle to the remote and complete installation.)
 
 .TP
 Sequence 1: The following set of commands, when run in sequence, will update a disconnected machine.
