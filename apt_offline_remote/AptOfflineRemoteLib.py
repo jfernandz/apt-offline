@@ -179,7 +179,7 @@ def _remote_single(host, args, log):
 
     steps = 2 if phase == "fetch" else 5
     log.msg("==> [1/%d] Generating signature on %s...\n" % (steps, host))
-    set_cmd = sudo_prefix + ["apt-offline", "set"]
+    set_cmd = sudo_prefix + ["apt-offline", "set", remote_sig]
     if args.remote_install_packages:
         set_cmd += ["--install-packages"] + args.remote_install_packages
     if args.remote_update:
@@ -188,7 +188,6 @@ def _remote_single(host, args, log):
         set_cmd += ["--upgrade"]
     if args.remote_dist_upgrade:
         set_cmd += ["--upgrade-type", "dist-upgrade"]
-    set_cmd += [remote_sig]
     _ssh_run(host, set_cmd)
 
     log.msg("==> [2/%d] Fetching signature...\n" % steps)
