@@ -256,6 +256,13 @@ def remote(args):
     if args.remote_phase is not None and (args.keep_latest is not None or args.clean_remote):
         log.err("--keep-latest and --clean-remote cannot be combined with --fetch, --download or --finish-install\n")
         sys.exit(1)
+    if args.remote_phase in ("download", "finish-install") and (
+            args.remote_update
+            or args.remote_upgrade
+            or args.remote_dist_upgrade
+            or args.remote_install_packages):
+        log.err("--update, --upgrade, --dist-upgrade and --install-packages cannot be combined with --download or --finish-install (operation was already saved by --fetch)\n")
+        sys.exit(1)
 
     if args.hosts_list:
         try:
