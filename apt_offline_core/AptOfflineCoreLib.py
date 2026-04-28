@@ -2913,7 +2913,7 @@ def _transfer_put(method, host, local_path, remote_path):
 
 
 def _latest_state(work_dir):
-    states = sorted(glob.glob(os.path.join(work_dir, "apt-remote-*.state")))
+    states = sorted(glob.glob(os.path.join(work_dir, "op-*.state")))
     if not states:
         raise FileNotFoundError("no state files found in %s — run --fetch first" % work_dir)
     with open(states[-1]) as f:

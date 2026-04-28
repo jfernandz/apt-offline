@@ -62,12 +62,12 @@ def _detect_sudo(host):
 
 
 def _cleanup_host(work_dir, keep):
-    states = sorted(glob.glob(os.path.join(work_dir, "apt-remote-*.state")))
+    states = sorted(glob.glob(os.path.join(work_dir, "op-*.state")))
     to_remove = states[:-keep] if keep > 0 else states
     for state_path in to_remove:
-        ts = os.path.basename(state_path)[len("apt-remote-"):-len(".state")]
+        ts = os.path.basename(state_path)[len("op-"):-len(".state")]
         for path in [
-            os.path.join(work_dir, "apt-remote-%s.sig" % ts),
+            os.path.join(work_dir, "op-%s.sig" % ts),
             os.path.join(work_dir, "bundle-%s.zip" % ts),
             state_path,
         ]:
@@ -115,7 +115,7 @@ def _remote_single(host, args, log):
             raise RuntimeError("no local state for %s — run --fetch first" % host)
         state = _latest_state(work_dir)
         ts = state["timestamp"]
-        local_sig = os.path.join(work_dir, "apt-remote-%s.sig" % ts)
+        local_sig = os.path.join(work_dir, "op-%s.sig" % ts)
         local_bundle = os.path.join(work_dir, "bundle-%s.zip" % ts)
         log.msg("==> Creating bundle from %s...\n" % local_sig)
         _run_fetcher(local_sig, local_bundle)
@@ -164,11 +164,11 @@ def _remote_single(host, args, log):
 
     sudo_prefix = _detect_sudo(host)
     timestamp = int(time.time())
-    remote_sig = "%s/apt-remote-%s.sig" % (_REMOTE_CACHE, timestamp)
+    remote_sig = "%s/op-%s.sig" % (_REMOTE_CACHE, timestamp)
     remote_bundle = "%s/bundle-%s.zip" % (_REMOTE_CACHE, timestamp)
-    local_sig = os.path.join(work_dir, "apt-remote-%s.sig" % timestamp)
+    local_sig = os.path.join(work_dir, "op-%s.sig" % timestamp)
     local_bundle = os.path.join(work_dir, "bundle-%s.zip" % timestamp)
-    local_state = os.path.join(work_dir, "apt-remote-%s.state" % timestamp)
+    local_state = os.path.join(work_dir, "op-%s.state" % timestamp)
     _ssh_run(host, ["mkdir", "-p", _REMOTE_CACHE])
 
     log.msg("==> Detecting transfer method...\n")
