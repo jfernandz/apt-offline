@@ -8,13 +8,13 @@ import sys
 import tempfile
 import time
 
-from apt_offline_core.AptOfflineCoreLib import (
+from apt_offline_core.AptOfflineCoreLib import fetcher
+from apt_offline_core.AptOfflineSSHLib import (
     _detect_transfer_method,
     _latest_state,
     _ssh_run,
     _transfer_get,
     _transfer_put,
-    fetcher,
 )
 
 _REMOTE_CACHE = ".cache/apt-offline"
