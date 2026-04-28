@@ -162,7 +162,7 @@ do strict checksum validation for .deb files. Instead, apt-offline copies the .d
 .IP "\fB\-\-install\-src\-path PATH\fP" 10
 Path to filesystem where we want the source packages to be installed to. Default will be a folder in your TEMPDIR.
 
-.SS remote [SSH_HOST | --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--reboot] [--work-dir DIR | --temp] [--keep-latest [N]] [--fetch | --download | --finish-install]
+.SS remote [SSH_HOST | --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--reboot] [--work-dir DIR | --temp] [--keep-latest [N]] [--clean-remote] [--fetch | --download | --finish-install]
 
 .PP
 .B remote
@@ -220,7 +220,7 @@ Reboot the remote machine after a successful operation.
 Local directory under which per-host working directories are created to store
 signature and bundle files.
 When omitted, files are kept under
-.B ~/.cache/apt-offline-remote/SSH_HOST/
+.B ~/.cache/apt-offline/SSH_HOST/
 and persist across reboots.
 Each run produces a uniquely timestamped pair of files, making parallel
 execution against multiple hosts and bundle reuse both safe.
@@ -229,7 +229,7 @@ Mutually exclusive with
 
 .IP "\fB\-\-temp\fP" 10
 Use
-.B /tmp/apt-offline-remote/SSH_HOST/
+.B /tmp/apt-offline/SSH_HOST/
 as the working directory instead of the default cache location.
 Files placed under
 .I /tmp
@@ -238,14 +238,32 @@ Mutually exclusive with
 .BR \-\-work\-dir .
 
 .IP "\fB\-\-keep\-latest [N]\fP" 10
-After a successful operation, remove all but the
+Remove all but the
 .I N
 most recent timestamped file sets (signature, bundle, and state) from the
-per-host working directory.
+local per-host working directory.
 .I N
 defaults to 1 when the flag is given without a value.
-When used without any operation flag or phase flag, performs a standalone
-cleanup only — no SSH connection is made.
+Must be used without any phase flag; when also omitting operation flags it
+performs a standalone local cleanup with no SSH connection.
+Cannot be combined with
+.BR \-\-fetch ,
+.B \-\-download
+or
+.BR \-\-finish\-install .
+
+.IP "\fB\-\-clean\-remote\fP" 10
+Remove the
+.B ~/.cache/apt-offline
+directory on the remote host.
+Can be combined with
+.B \-\-keep\-latest
+to clean both sides in one command.
+Cannot be combined with
+.BR \-\-fetch ,
+.B \-\-download
+or
+.BR \-\-finish\-install .
 
 .PP
 When none of the phase flags below is given,

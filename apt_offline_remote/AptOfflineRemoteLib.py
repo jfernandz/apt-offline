@@ -17,12 +17,12 @@ from apt_offline_core.AptOfflineCoreLib import (
     fetcher,
 )
 
-_REMOTE_CACHE = ".cache/apt-offline-remote"
+_REMOTE_CACHE = ".cache/apt-offline"
 
 
 
 def _run_fetcher(sig_path, bundle_path):
-    tmpdir = tempfile.mkdtemp(prefix="apt-offline-remote-")
+    tmpdir = tempfile.mkdtemp(prefix="apt-offline-")
     saved_cwd = os.getcwd()
     try:
         try:
@@ -81,13 +81,14 @@ def _remote_single(host, args, log):
     if args.work_dir:
         base_dir = args.work_dir
     elif args.temp:
-        base_dir = "/tmp/apt-offline-remote"
+        base_dir = "/tmp/apt-offline"
     else:
-        base_dir = os.path.expanduser("~/.cache/apt-offline-remote")
+        base_dir = os.path.expanduser("~/.cache/apt-offline")
     work_dir = os.path.join(base_dir, host)
 
     phase = args.remote_phase  # "fetch", "download", "finish-install", or None (full)
     keep = args.keep_latest
+    clean_remote = args.clean_remote
 
     # standalone cleanup — no phase, no operation flags
     if (phase is None
@@ -95,12 +96,17 @@ def _remote_single(host, args, log):
             and not args.remote_upgrade
             and not args.remote_dist_upgrade
             and not args.remote_install_packages
-            and keep is not None):
-        if not os.path.isdir(work_dir):
-            log.msg("==> Nothing to clean for %s (work dir does not exist)\n" % host)
-            return
-        _cleanup_host(work_dir, keep)
-        log.msg("==> Cleaned up work dir for %s (kept %d)\n" % (host, keep))
+            and (keep is not None or clean_remote)):
+        if clean_remote:
+            log.msg("==> Cleaning remote cache on %s...\n" % host)
+            _ssh_run(host, ["rm", "-rf", _REMOTE_CACHE])
+            log.msg("==> Remote cache cleaned for %s\n" % host)
+        if keep is not None:
+            if not os.path.isdir(work_dir):
+                log.msg("==> Nothing to clean locally for %s (work dir does not exist)\n" % host)
+            else:
+                _cleanup_host(work_dir, keep)
+                log.msg("==> Cleaned up local work dir for %s (kept %d)\n" % (host, keep))
         return
 
     # ------------------------------------------------------------------ phase 2
@@ -114,8 +120,6 @@ def _remote_single(host, args, log):
         log.msg("==> Creating bundle from %s...\n" % local_sig)
         _run_fetcher(local_sig, local_bundle)
         log.success("Bundle created: %s\n" % local_bundle)
-        if keep is not None:
-            _cleanup_host(work_dir, keep)
         return
 
     # ------------------------------------------------------------------ phase 3
@@ -146,8 +150,6 @@ def _remote_single(host, args, log):
         if args.reboot:
             log.msg("==> Rebooting %s...\n" % host)
             _ssh_run(host, sudo_prefix + ["reboot"])
-        if keep is not None:
-            _cleanup_host(work_dir, keep)
         return
 
     # --------------------------------------------------- phase 1 / full pipeline
@@ -204,8 +206,6 @@ def _remote_single(host, args, log):
     if phase == "fetch":
         log.success("Signature fetched: %s\n" % local_sig)
         log.msg("==> Run 'apt-offline remote %s --download' to create the bundle when online\n" % host)
-        if keep is not None:
-            _cleanup_host(work_dir, keep)
         return
 
     log.msg("==> [3/5] Creating bundle locally...\n")
@@ -230,9 +230,6 @@ def _remote_single(host, args, log):
         log.msg("==> Rebooting %s...\n" % host)
         _ssh_run(host, sudo_prefix + ["reboot"])
 
-    if keep is not None:
-        _cleanup_host(work_dir, keep)
-
 
 def _read_hosts_file(path):
     hosts = []
@@ -255,6 +252,9 @@ def remote(args):
         sys.exit(1)
     if not args.remote_host and not args.hosts_list:
         log.err("Must specify either SSH_HOST or --hosts-list\n")
+        sys.exit(1)
+    if args.remote_phase is not None and (args.keep_latest is not None or args.clean_remote):
+        log.err("--keep-latest and --clean-remote cannot be combined with --fetch, --download or --finish-install\n")
         sys.exit(1)
 
     if args.hosts_list:
@@ -357,7 +357,7 @@ def register_subparser(subparsers, global_options):
     work_dir_group.add_argument(
         "--work-dir",
         dest="work_dir",
-        help="Local base directory for sig/bundle files (default: ~/.cache/apt-offline-remote)",
+        help="Local base directory for sig/bundle files (default: ~/.cache/apt-offline)",
         action="store",
         type=str,
         default=None,
@@ -366,7 +366,7 @@ def register_subparser(subparsers, global_options):
     work_dir_group.add_argument(
         "--temp",
         dest="temp",
-        help="Use /tmp/apt-offline-remote as the local working directory",
+        help="Use /tmp/apt-offline as the local working directory",
         action="store_true",
         default=False,
     )
@@ -374,12 +374,20 @@ def register_subparser(subparsers, global_options):
     parser_remote.add_argument(
         "--keep-latest",
         dest="keep_latest",
-        help="Keep only the N most recent operations per host (default: 1 if flag is given)",
+        help="Keep only the N most recent local operations per host (default: 1 if flag is given)",
         nargs="?",
         const=1,
         default=None,
         type=int,
         metavar="N",
+    )
+
+    parser_remote.add_argument(
+        "--clean-remote",
+        dest="clean_remote",
+        help="Remove ~/.cache/apt-offline on the remote host(s)",
+        action="store_true",
+        default=False,
     )
 
     phase_group = parser_remote.add_mutually_exclusive_group()
