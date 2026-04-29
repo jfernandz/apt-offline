@@ -306,7 +306,7 @@ def remote(args):
             log.err("Error reading hosts list: %s\n" % e)
             sys.exit(1)
     else:
-        hosts = [args.remote_host]
+        hosts = args.remote_host
 
     succeeded = []
     failed = []
@@ -341,9 +341,9 @@ def register_subparser(subparsers, global_options):
 
     parser_remote.add_argument(
         "remote_host",
-        nargs="?",
+        nargs="*",
         default=None,
-        help="SSH host to target (an alias from ~/.ssh/config, or [user@]hostname)",
+        help="One or more SSH hosts to target (aliases from ~/.ssh/config, or [user@]hostname)",
         metavar="SSH_HOST",
     )
 
