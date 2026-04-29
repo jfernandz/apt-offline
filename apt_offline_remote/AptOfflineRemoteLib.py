@@ -72,6 +72,18 @@ def _detect_sudo(host):
     return ["sudo"]
 
 
+def _check_remote_prereqs(host):
+    result = subprocess.run(
+        ["ssh", "-o", "LogLevel=QUIET", host, "which apt-offline"],
+        capture_output=True
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "apt-offline is not installed on %s.\n"
+            "Install it with: sudo apt-get install apt-offline" % host
+        )
+
+
 def _cleanup_host(work_dir, keep):
     op_dirs = sorted(
         [d for d in glob.glob(os.path.join(work_dir, "*-*")) if os.path.isdir(d)]
@@ -141,6 +153,7 @@ def _remote_single(host, args, log):
         if not os.path.isdir(work_dir):
             raise RuntimeError("no local state for %s — run --fetch first" % host)
         state = _latest_state(work_dir)
+        _check_remote_prereqs(host)
         sudo_prefix = _detect_sudo(host)
         op_dir = os.path.join(work_dir, state["op_dir"])
         local_bundle = os.path.join(op_dir, "bundle.zip")
@@ -177,6 +190,7 @@ def _remote_single(host, args, log):
         log.err("At least one of --update, --upgrade, --dist-upgrade or --install-packages must be specified\n")
         raise SystemExit(1)
 
+    _check_remote_prereqs(host)
     sudo_prefix = _detect_sudo(host)
     timestamp = int(time.time())
     tag = _op_tag(args)
