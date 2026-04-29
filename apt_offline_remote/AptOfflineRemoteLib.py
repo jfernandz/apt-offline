@@ -58,6 +58,17 @@ def _detect_sudo(host):
     )
     if result.returncode == 0 and result.stdout.strip().splitlines()[-1] == "0":
         return []
+    probe = subprocess.run(
+        ["ssh", "-o", "LogLevel=QUIET", host, "sudo -n true"],
+        capture_output=True
+    )
+    if probe.returncode != 0:
+        raise RuntimeError(
+            "Remote user on %s is not root and sudo requires a password.\n"
+            "Add a sudoers entry for the commands apt-offline needs, e.g.:\n"
+            "  your_user ALL=(ALL) NOPASSWD: /usr/bin/apt-offline, /usr/bin/apt-get, /sbin/reboot, /bin/mkdir"
+            % host
+        )
     return ["sudo"]
 
 
