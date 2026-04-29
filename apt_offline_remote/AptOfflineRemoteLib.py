@@ -140,12 +140,14 @@ def _remote_single(host, args, log):
         log.msg("==> [2/3] Installing bundle on %s...\n" % host)
         _ssh_run(host, sudo_prefix + ["apt-offline", "install", remote_bundle])
         log.msg("==> [3/3] Running apt-get on %s...\n" % host)
+        apt_env = ["env", "DEBIAN_FRONTEND=noninteractive"]
+        apt_opts = ["-y", "-o", "Dpkg::Options::=--force-confold"]
         if state["dist_upgrade"]:
-            _ssh_run(host, sudo_prefix + ["apt-get", "dist-upgrade", "-y"])
+            _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "dist-upgrade"] + apt_opts)
         elif state["upgrade"]:
-            _ssh_run(host, sudo_prefix + ["apt-get", "upgrade", "-y"])
+            _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "upgrade"] + apt_opts)
         elif state["install_packages"]:
-            _ssh_run(host, sudo_prefix + ["apt-get", "install", "-y"] + state["install_packages"])
+            _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "install"] + apt_opts + state["install_packages"])
         log.success("Operation completed successfully for %s\n" % host)
         if args.reboot:
             log.msg("==> Rebooting %s...\n" % host)
@@ -216,12 +218,14 @@ def _remote_single(host, args, log):
     log.msg("==> [5/5] Installing bundle on remote...\n")
     _ssh_run(host, sudo_prefix + ["apt-offline", "install", remote_bundle])
 
+    apt_env = ["env", "DEBIAN_FRONTEND=noninteractive"]
+    apt_opts = ["-y", "-o", "Dpkg::Options::=--force-confold"]
     if args.remote_dist_upgrade:
-        _ssh_run(host, sudo_prefix + ["apt-get", "dist-upgrade", "-y"])
+        _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "dist-upgrade"] + apt_opts)
     elif args.remote_upgrade:
-        _ssh_run(host, sudo_prefix + ["apt-get", "upgrade", "-y"])
+        _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "upgrade"] + apt_opts)
     elif args.remote_install_packages:
-        _ssh_run(host, sudo_prefix + ["apt-get", "install", "-y"] + args.remote_install_packages)
+        _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "install"] + apt_opts + args.remote_install_packages)
 
     log.success("Operation completed successfully for %s\n" % host)
 
