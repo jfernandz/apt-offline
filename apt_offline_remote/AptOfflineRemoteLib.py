@@ -74,10 +74,18 @@ def _detect_sudo(host):
 
 def _check_remote_prereqs(host):
     result = subprocess.run(
-        ["ssh", "-o", "LogLevel=QUIET", host, "which apt-offline"],
-        capture_output=True
+        ["ssh", "-o", "LogLevel=QUIET", host,
+         "which apt-offline && echo OK || echo MISSING"],
+        capture_output=True, text=True
     )
     if result.returncode != 0:
+        stderr = result.stderr.strip()
+        msg = "Cannot connect to %s" % host
+        if stderr:
+            msg += ": %s" % stderr
+        raise RuntimeError(msg)
+    last_line = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
+    if last_line != "OK":
         raise RuntimeError(
             "apt-offline is not installed on %s.\n"
             "Install it with: sudo apt-get install apt-offline" % host
