@@ -340,9 +340,17 @@ def register_subparser(subparsers, global_options):
     parser_remote = subparsers.add_parser(
         "remote",
         parents=[global_options],
+        add_help=False,
         help="Run the full set/get/install pipeline against a remote host over SSH",
     )
     parser_remote.set_defaults(func=remote)
+
+    parser_remote.add_argument(
+        "-h", "--help",
+        action="help",
+        default=argparse.SUPPRESS,
+        help="Show this help message and exit",
+    )
 
     parser_remote.add_argument(
         "remote_host",

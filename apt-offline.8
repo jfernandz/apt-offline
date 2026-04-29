@@ -162,7 +162,7 @@ do strict checksum validation for .deb files. Instead, apt-offline copies the .d
 .IP "\fB\-\-install\-src\-path PATH\fP" 10
 Path to filesystem where we want the source packages to be installed to. Default will be a folder in your TEMPDIR.
 
-.SS remote [SSH_HOST | --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--reboot] [--work-dir DIR | --temp] [--keep-latest [N]] [--clean-remote] [--fetch | --download | --finish-install]
+.SS remote [SSH_HOST ...| --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--reboot] [--work-dir DIR | --temp] [--keep-latest [N]] [--clean-remote] [--fetch | --download | --finish-install]
 
 .PP
 .B remote
@@ -174,12 +174,13 @@ have
 installed.
 
 .B SSH_HOST
-is the target machine, specified as an SSH alias from
+is one or more target machines, each specified as an SSH alias from
 .I ~/.ssh/config
 or as
 .I [user@]hostname
 as accepted by
 .BR ssh (1).
+Multiple hosts are separated by whitespace.
 Mutually exclusive with
 .BR \-\-hosts\-list .
 
@@ -209,11 +210,23 @@ Perform a full dist-upgrade on the remote machine.
 Packages to install on the remote machine.
 
 .PP
+Before any operation,
+.B remote
+verifies that
+.B apt-offline
+is installed on the remote host (via
+.BR "which apt-offline" ).
+If it is missing, the command fails immediately with an install hint.
+.PP
 Remote commands that require root privileges are automatically prefixed with
 .B sudo
 unless the connecting user is already root (detected by checking
 .B id -u
 on the remote).
+The remote user must have passwordless sudo configured for the commands
+apt-offline needs (apt-offline, apt-get, mkdir, reboot).
+If sudo requires a password, the command fails early with the required
+sudoers entry.
 No flag is needed.
 
 .IP "\fB\-\-reboot\fP" 10
@@ -418,14 +431,20 @@ deb http://security.debian.org testing-security/updates main contrib
 .B (Security Updates for Debian Testing)
 
 .TP
-.B apt-offline remote SSH_HOST
+.B apt-offline remote SSH_HOST [SSH_HOST ...]
 This command automates the entire set/get/install workflow over SSH.
 The local machine downloads the required data and pushes it to the remote.
 At least one of \-\-update, \-\-upgrade, \-\-dist\-upgrade or \-\-install\-packages must be specified.
+Multiple hosts can be given as whitespace-separated positional arguments,
+or via a file with \-\-hosts\-list.
 
 .B One-shot (local machine stays online throughout):
 
 .B apt\-offline remote myserver \-\-update \-\-upgrade
+
+.B One-shot against multiple hosts:
+
+.B apt\-offline remote host1 host2 host3 \-\-update \-\-upgrade
 
 .B Split workflow (local machine goes offline between phases):
 
