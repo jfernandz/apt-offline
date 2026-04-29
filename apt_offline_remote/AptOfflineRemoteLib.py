@@ -189,7 +189,7 @@ def _remote_single(host, args, log):
     if args.remote_upgrade:
         set_cmd += ["--upgrade"]
     if args.remote_dist_upgrade:
-        set_cmd += ["--upgrade-type", "dist-upgrade"]
+        set_cmd += ["--upgrade", "--upgrade-type", "dist-upgrade"]
     _ssh_run(host, set_cmd)
 
     log.msg("==> [2/%d] Fetching signature...\n" % steps)
