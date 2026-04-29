@@ -226,6 +226,11 @@ def _remote_single(host, args, log):
     log.msg("==> [2/%d] Fetching signature...\n" % steps)
     _transfer_get(transfer, host, remote_sig, local_sig)
 
+    if os.path.getsize(local_sig) == 0:
+        log.success("Nothing to do on %s — system is already up to date\n" % host)
+        shutil.rmtree(op_dir, ignore_errors=True)
+        return
+
     with open(local_state, "w") as f:
         json.dump({
             "timestamp": timestamp,
