@@ -248,6 +248,10 @@ Lines starting with
 <B>#</B>
 
 and blank lines are ignored.
+Inline comments (text following a
+<B>#</B>
+
+on the same line as a host) are also stripped.
 Applies the requested operation to all listed hosts in sequence,
 reporting a per-host summary at the end.
 Mutually exclusive with
@@ -289,8 +293,27 @@ When omitted, files are kept under
 <B>~/.cache/apt-offline/SSH_HOST/</B>
 
 and persist across reboots.
-Each run produces a uniquely timestamped pair of files, making parallel
-execution against multiple hosts and bundle reuse both safe.
+Each run creates a uniquely timestamped operation subdirectory of the form
+<B>&lt;timestamp&gt;-&lt;tag&gt;/</B>
+
+(where tag is one of
+<B>upd</B>,
+
+<B>upg</B>,
+
+<B>dup</B>,
+
+<B>ipk</B>)
+
+containing
+<B>apt-offline.sig</B>,
+
+<B>bundle.zip</B>
+
+and
+<B>state.json</B>,
+
+making parallel execution against multiple hosts and bundle reuse both safe.
 Mutually exclusive with
 <B>--temp</B>.
 
@@ -312,7 +335,7 @@ Mutually exclusive with
 Remove all but the
 <I>N</I>
 
-most recent timestamped file sets (signature, bundle, and state) from the
+most recent timestamped operation directories from the
 local per-host working directory.
 <I>N</I>
 
@@ -362,8 +385,25 @@ between the signature fetch and the package download
 <DL COMPACT>
 <DT><B>--fetch</B><DD>
 Phase 1: connect to the remote, generate the signature file and fetch it
-locally. Saves a state file alongside the signature so subsequent phases
-know which operation was originally requested.
+locally. Creates a timestamped operation subdirectory containing the
+signature and a state file so subsequent phases know which operation was
+originally requested.
+Operation flags
+(<B>--update</B>,
+
+<B>--upgrade</B>,
+
+<B>--dist-upgrade</B>,
+
+<B>--install-packages</B>)
+
+are required here and cannot be used with
+<B>--download</B>
+
+or
+<B>--finish-install</B>,
+
+which read the operation from the saved state.
 <P>
 <DT><B>--download</B><DD>
 Phase 2: run
@@ -388,9 +428,12 @@ to the remote, install it with
 and run the corresponding
 <B>apt-get</B>
 
-operation. The operation type is read from the state file written by
+operation non-interactively, preserving locally modified configuration
+files on conflict.
+The operation type is read from the state file written by
 <B>--fetch</B>.
 
+Cannot be combined with operation flags.
 <P>
 </DL>
 <A NAME="lbAI">&nbsp;</A>
@@ -634,6 +677,6 @@ This software is dedicated to the memory of my father Santosh Kumar Sarraf. We m
 This document was created by
 <A HREF="/cgi-bin/man/man2html">man2html</A>,
 using the manual pages.<BR>
-Time: 06:12:12 GMT, April 28, 2026
+Time: 10:38:53 GMT, April 29, 2026
 </BODY>
 </HTML>
