@@ -852,6 +852,7 @@ class GenericDownloadFunction:
                 self.addItem(size)
         except urllib.error.HTTPError as errstring:
             errfunc(errstring.code, errstring.reason, url)
+            errstring.close()
             return False
         except urllib.error.URLError as errstring:
             # INFO: Weird. But in urllib2.URLError, I noticed that for
@@ -1774,6 +1775,7 @@ def fetcher(args):
                     totalSize[0] += size
                 except urllib.error.HTTPError as errstring:
                     errfunc(errstring.code, errstring.reason, url)
+                    errstring.close()
                     log.verbose(traceback.format_exc())
                 except urllib.error.URLError as errstring:
                     if errstring.errno is None:
