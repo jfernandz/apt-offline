@@ -62,19 +62,22 @@ def _detect_sudo(host):
 
 
 def _cleanup_host(work_dir, keep):
-    states = sorted(glob.glob(os.path.join(work_dir, "op-*.state")))
-    to_remove = states[:-keep] if keep > 0 else states
-    for state_path in to_remove:
-        ts = os.path.basename(state_path)[len("op-"):-len(".state")]
-        for path in [
-            os.path.join(work_dir, "op-%s.sig" % ts),
-            os.path.join(work_dir, "bundle-%s.zip" % ts),
-            state_path,
-        ]:
-            try:
-                os.remove(path)
-            except FileNotFoundError:
-                pass
+    op_dirs = sorted(
+        [d for d in glob.glob(os.path.join(work_dir, "*-*")) if os.path.isdir(d)]
+    )
+    to_remove = op_dirs[:-keep] if keep > 0 else op_dirs
+    for op_dir in to_remove:
+        shutil.rmtree(op_dir, ignore_errors=True)
+
+
+def _op_tag(args):
+    if args.remote_dist_upgrade:
+        return "dup"
+    if args.remote_upgrade:
+        return "upg"
+    if args.remote_update:
+        return "upd"
+    return "ipk"
 
 
 def _remote_single(host, args, log):
@@ -114,9 +117,9 @@ def _remote_single(host, args, log):
         if not os.path.isdir(work_dir):
             raise RuntimeError("no local state for %s — run --fetch first" % host)
         state = _latest_state(work_dir)
-        ts = state["timestamp"]
-        local_sig = os.path.join(work_dir, "op-%s.sig" % ts)
-        local_bundle = os.path.join(work_dir, "bundle-%s.zip" % ts)
+        op_dir = os.path.join(work_dir, state["op_dir"])
+        local_sig = os.path.join(op_dir, "apt-offline.sig")
+        local_bundle = os.path.join(op_dir, "bundle.zip")
         log.msg("==> Creating bundle from %s...\n" % local_sig)
         _run_fetcher(local_sig, local_bundle)
         log.success("Bundle created: %s\n" % local_bundle)
@@ -128,10 +131,11 @@ def _remote_single(host, args, log):
             raise RuntimeError("no local state for %s — run --fetch first" % host)
         state = _latest_state(work_dir)
         sudo_prefix = _detect_sudo(host)
-        ts = state["timestamp"]
-        local_bundle = os.path.join(work_dir, "bundle-%s.zip" % ts)
-        remote_bundle = "%s/bundle-%s.zip" % (_REMOTE_CACHE, ts)
-        _ssh_run(host, ["mkdir", "-p", _REMOTE_CACHE])
+        op_dir = os.path.join(work_dir, state["op_dir"])
+        local_bundle = os.path.join(op_dir, "bundle.zip")
+        remote_op_dir = "%s/%s" % (_REMOTE_CACHE, state["op_dir"])
+        remote_bundle = "%s/bundle.zip" % remote_op_dir
+        _ssh_run(host, ["mkdir", "-p", remote_op_dir])
         log.msg("==> Detecting transfer method...\n")
         transfer = _detect_transfer_method(host)
         log.msg("==> Using %s for file transfers\n" % transfer)
@@ -162,16 +166,18 @@ def _remote_single(host, args, log):
         log.err("At least one of --update, --upgrade, --dist-upgrade or --install-packages must be specified\n")
         raise SystemExit(1)
 
-    os.makedirs(work_dir, exist_ok=True)
-
     sudo_prefix = _detect_sudo(host)
     timestamp = int(time.time())
-    remote_sig = "%s/op-%s.sig" % (_REMOTE_CACHE, timestamp)
-    remote_bundle = "%s/bundle-%s.zip" % (_REMOTE_CACHE, timestamp)
-    local_sig = os.path.join(work_dir, "op-%s.sig" % timestamp)
-    local_bundle = os.path.join(work_dir, "bundle-%s.zip" % timestamp)
-    local_state = os.path.join(work_dir, "op-%s.state" % timestamp)
-    _ssh_run(host, ["mkdir", "-p", _REMOTE_CACHE])
+    tag = _op_tag(args)
+    op_dir = os.path.join(work_dir, "%d-%s" % (timestamp, tag))
+    os.makedirs(op_dir, exist_ok=True)
+    remote_op_dir = "%s/%d-%s" % (_REMOTE_CACHE, timestamp, tag)
+    remote_sig = "%s/apt-offline.sig" % remote_op_dir
+    remote_bundle = "%s/bundle.zip" % remote_op_dir
+    local_sig = os.path.join(op_dir, "apt-offline.sig")
+    local_bundle = os.path.join(op_dir, "bundle.zip")
+    local_state = os.path.join(op_dir, "state.json")
+    _ssh_run(host, ["mkdir", "-p", remote_op_dir])
 
     log.msg("==> Detecting transfer method...\n")
     transfer = _detect_transfer_method(host)
@@ -198,6 +204,7 @@ def _remote_single(host, args, log):
     with open(local_state, "w") as f:
         json.dump({
             "timestamp": timestamp,
+            "op_dir": "%d-%s" % (timestamp, tag),
             "update": args.remote_update,
             "upgrade": args.remote_upgrade,
             "dist_upgrade": args.remote_dist_upgrade,

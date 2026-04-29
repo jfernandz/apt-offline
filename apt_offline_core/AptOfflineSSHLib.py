@@ -45,8 +45,9 @@ def _transfer_put(method, host, local_path, remote_path):
 
 
 def _latest_state(work_dir):
-    states = sorted(glob.glob(os.path.join(work_dir, "op-*.state")))
-    if not states:
+    state_files = glob.glob(os.path.join(work_dir, "*/state.json"))
+    if not state_files:
         raise FileNotFoundError("no state files found in %s — run --fetch first" % work_dir)
-    with open(states[-1]) as f:
+    state_files = sorted(state_files)
+    with open(state_files[-1]) as f:
         return json.load(f)
