@@ -238,8 +238,8 @@ def _read_hosts_file(path):
     hosts = []
     with open(path) as f:
         for line in f:
-            line = line.strip()
-            if line and not line.startswith("#"):
+            line = line.split("#")[0].strip()
+            if line:
                 hosts.append(line)
     if not hosts:
         raise ValueError("No hosts found in %s" % path)
