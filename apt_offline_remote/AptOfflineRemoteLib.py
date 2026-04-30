@@ -21,7 +21,9 @@ _REMOTE_CACHE = ".cache/apt-offline"
 
 
 
-def _run_fetcher(sig_path, bundle_path):
+def _run_fetcher(sig_path, bundle_path, cache_dir=None):
+    if cache_dir:
+        os.makedirs(cache_dir, exist_ok=True)
     tmpdir = tempfile.mkdtemp(prefix="apt-offline-")
     saved_cwd = os.getcwd()
     try:
@@ -31,7 +33,7 @@ def _run_fetcher(sig_path, bundle_path):
                 bundle_file=bundle_path,
                 socket_timeout=30,
                 download_dir=tmpdir,
-                cache_dir=None,
+                cache_dir=cache_dir,
                 disable_md5check=False,
                 num_of_threads=1,
                 proxy_host=None,
@@ -151,8 +153,9 @@ def _remote_single(host, args, log):
         op_dir = os.path.join(work_dir, state["op_dir"])
         local_sig = os.path.join(op_dir, "apt-offline.sig")
         local_bundle = os.path.join(op_dir, "bundle.zip")
+        pkg_cache = None if args.no_pkg_cache else os.path.join(base_dir, "pkg-cache")
         log.msg("==> Creating bundle from %s...\n" % local_sig)
-        _run_fetcher(local_sig, local_bundle)
+        _run_fetcher(local_sig, local_bundle, cache_dir=pkg_cache)
         log.success("Bundle created: %s\n" % local_bundle)
         return
 
@@ -254,8 +257,9 @@ def _remote_single(host, args, log):
         log.msg("==> Run 'apt-offline remote %s --download' to create the bundle when online\n" % host)
         return
 
+    pkg_cache = None if args.no_pkg_cache else os.path.join(base_dir, "pkg-cache")
     log.msg("==> [3/5] Creating bundle locally...\n")
-    _run_fetcher(local_sig, local_bundle)
+    _run_fetcher(local_sig, local_bundle, cache_dir=pkg_cache)
 
     log.msg("==> [4/5] Sending bundle to remote...\n")
     _transfer_put(transfer, host, local_bundle, remote_bundle)
@@ -430,6 +434,14 @@ def register_subparser(subparsers, global_options):
         "--temp",
         dest="temp",
         help="Use /tmp/apt-offline as the local working directory",
+        action="store_true",
+        default=False,
+    )
+
+    parser_remote.add_argument(
+        "--no-pkg-cache",
+        dest="no_pkg_cache",
+        help="Disable the local package cache (default: <work-dir>/pkg-cache)",
         action="store_true",
         default=False,
     )
