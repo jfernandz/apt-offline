@@ -108,6 +108,8 @@ class Checksum:
     def CheckHashDigest(self, checksumFile, checksum):
         """Return Bool against file and its checksum"""
 
+        if not checksum or ":" not in checksum:
+            return True
         checksumType = checksum.split(":")[0]
         checksumType = checksumType.lower()
         checksum = checksum.split(":")[1]
@@ -608,16 +610,17 @@ class FileMgmt(object):
             # in read and write modes, which leads to NULL data corruption
             destFile = os.path.join(dest, os.path.basename(src))
             srcFile = os.path.abspath(src)
-            # print(srcFile, destFile)
             if srcFile == destFile:
                 return True
+            tmpFile = destFile + ".tmp"
             SFH = open(srcFile, "rb")
-            DFH = open(destFile, "wb")
+            DFH = open(tmpFile, "wb")
 
             DFH.write(SFH.read())
             DFH.flush()
             DFH.close()
             SFH.close()
+            os.rename(tmpFile, destFile)
         except IOError:
             SFH.close()
             return False

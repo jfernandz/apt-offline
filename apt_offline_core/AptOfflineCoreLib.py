@@ -1552,6 +1552,8 @@ def fetcher(args):
         log.msg("WARNING: Else higher number of threads executed could cause\n")
         log.msg("WARNING: network congestion and timeouts.\n\n")
 
+    unverified_cache_hits = []
+
     def DataFetcher(request, response, func=FetcherInstance.find_first_match):
         """Get items from the request Queue, process them
         with func(), put the results along with the
@@ -1594,6 +1596,8 @@ def fetcher(args):
             # INFO: If we find the file in the local Str_CacheDir, we'll execute this block.
             if full_file_path is not False:
                 if FetcherInstance.verifyPayloadIntegrity(full_file_path, checksum):
+                    if not checksum or ":" not in checksum:
+                        unverified_cache_hits.append(pkgFile)
                     log.success(
                         "%s found in cache%s\n" % (
                             PackageName, LINE_OVERWRITE_FULL)
@@ -1834,6 +1838,9 @@ def fetcher(args):
         log.msg("\nDownloaded data to %s\n" % (Str_BundleFile))
     else:
         log.msg("\nDownloaded data to %s\n" % (Str_DownloadDir))
+
+    if unverified_cache_hits:
+        log.warn("%d package(s) served from cache without checksum verification\n" % len(unverified_cache_hits))
 
     # Print the failed files
     if len(errlist) > 0:
