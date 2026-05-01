@@ -153,6 +153,8 @@ def _remote_single(host, args, log):
         op_dir = os.path.join(work_dir, state["op_dir"])
         local_sig = os.path.join(op_dir, "apt-offline.sig")
         local_bundle = os.path.join(op_dir, "bundle.zip")
+        if args.force and os.path.exists(local_bundle):
+            os.remove(local_bundle)
         pkg_cache = None if args.no_pkg_cache else os.path.join(base_dir, "pkg-cache")
         log.msg("==> Creating bundle from %s...\n" % local_sig)
         _run_fetcher(local_sig, local_bundle, cache_dir=pkg_cache)
@@ -257,6 +259,8 @@ def _remote_single(host, args, log):
         log.msg("==> Run 'apt-offline remote %s --download' to create the bundle when online\n" % host)
         return
 
+    if args.force and os.path.exists(local_bundle):
+        os.remove(local_bundle)
     pkg_cache = None if args.no_pkg_cache else os.path.join(base_dir, "pkg-cache")
     log.msg("==> [3/5] Creating bundle locally...\n")
     _run_fetcher(local_sig, local_bundle, cache_dir=pkg_cache)
@@ -314,6 +318,9 @@ def remote(args):
             or args.remote_dist_upgrade
             or args.remote_install_packages):
         log.err("--update, --upgrade, --dist-upgrade and --install-packages cannot be combined with --download or --finish-install (operation was already saved by --fetch)\n")
+        sys.exit(1)
+    if args.force and args.remote_phase in ("fetch", "finish-install"):
+        log.err("--force can only be used with --download or the full pipeline\n")
         sys.exit(1)
 
     if args.hosts_list:
@@ -434,6 +441,14 @@ def register_subparser(subparsers, global_options):
         "--temp",
         dest="temp",
         help="Use /tmp/apt-offline as the local working directory",
+        action="store_true",
+        default=False,
+    )
+
+    parser_remote.add_argument(
+        "--force",
+        dest="force",
+        help="Overwrite an existing bundle instead of failing",
         action="store_true",
         default=False,
     )
