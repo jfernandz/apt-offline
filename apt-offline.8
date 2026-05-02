@@ -162,7 +162,7 @@ do strict checksum validation for .deb files. Instead, apt-offline copies the .d
 .IP "\fB\-\-install\-src\-path PATH\fP" 10
 Path to filesystem where we want the source packages to be installed to. Default will be a folder in your TEMPDIR.
 
-.SS remote [SSH_HOST ...| --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--reboot] [--work-dir DIR | --temp] [--keep-latest [N]] [--clean-remote] [--fetch | --download | --finish-install]
+.SS remote [SSH_HOST ...| --hosts-list FILE] [-h] [--update] [--upgrade] [--dist-upgrade] [--install-packages PKG...] [--reboot] [--work-dir DIR | --temp] [--force] [--cache-metadata] [--no-pkg-cache] [--keep-latest [N]] [--clean-remote] [--clean-cache] [--clean-pkg-cache] [--clean-metadata-cache] [--status] [--fetch | --download | --finish-install]
 
 .PP
 .B remote
@@ -196,6 +196,15 @@ Applies the requested operation to all listed hosts in sequence,
 reporting a per-host summary at the end.
 Mutually exclusive with
 .BR SSH_HOST .
+If neither
+.B SSH_HOST
+nor
+.B \-\-hosts\-list
+is given and
+.B \-\-work\-dir
+is set, a file named
+.B hosts.list
+in the work directory is used automatically.
 
 .IP "\fB\-\-update\fP" 10
 Generate and apply an APT database update on the remote machine.
@@ -251,6 +260,10 @@ containing
 and
 .BR state.json ,
 making parallel execution against multiple hosts and bundle reuse both safe.
+The shared package and metadata caches are kept directly under this directory as
+.B pkg-cache/
+and
+.BR metadata-cache/ .
 Mutually exclusive with
 .BR \-\-temp .
 
@@ -292,6 +305,72 @@ Cannot be combined with
 or
 .BR \-\-finish\-install .
 
+.IP "\fB\-\-force\fP" 10
+Overwrite an existing
+.B bundle.zip
+instead of failing.
+Only valid with
+.B \-\-download
+or the full pipeline; rejected with
+.B \-\-fetch
+or
+.BR \-\-finish\-install .
+
+.IP "\fB\-\-cache\-metadata\fP" 10
+Cache metadata files (Release, Packages, Translation, etc.) under
+.B <work\-dir>/metadata\-cache/
+keyed by a SHA256 of the URL, so identical files are not re-downloaded for
+each host in a batch run.
+Off by default because cached metadata may be stale across separate runs.
+404 responses are also cached (negative cache) to avoid retrying all
+compression formats for every host.
+
+.IP "\fB\-\-no\-pkg\-cache\fP" 10
+Disable the local package cache.
+By default
+.B .deb
+files are cached under
+.B <work\-dir>/pkg\-cache/
+and reused across hosts and runs (verified by checksum where available).
+
+.IP "\fB\-\-clean\-cache\fP" 10
+Remove both
+.B pkg\-cache/
+and
+.B metadata\-cache/
+under the local work directory.
+Cannot be combined with
+.BR \-\-fetch ,
+.B \-\-download
+or
+.BR \-\-finish\-install .
+
+.IP "\fB\-\-clean\-pkg\-cache\fP" 10
+Remove only the
+.B pkg\-cache/
+directory.
+Cannot be combined with
+.BR \-\-fetch ,
+.B \-\-download
+or
+.BR \-\-finish\-install .
+
+.IP "\fB\-\-clean\-metadata\-cache\fP" 10
+Remove only the
+.B metadata\-cache/
+directory.
+Cannot be combined with
+.BR \-\-fetch ,
+.B \-\-download
+or
+.BR \-\-finish\-install .
+
+.IP "\fB\-\-status\fP" 10
+Display the pipeline status of local runs for the given host(s).
+For each timestamped operation directory shows the date, operation type,
+and whether the fetch, download and install phases have completed.
+Reads only local state; no SSH connection is made.
+
 .PP
 When none of the phase flags below is given,
 .B remote
@@ -327,6 +406,11 @@ from the latest
 run. Intended for use on a good internet connection after
 .B \-\-fetch
 has completed.
+If the remote is already up to date the signature will be empty and the
+command exits cleanly with a "nothing to do" message.
+Use
+.B \-\-force
+to overwrite an existing bundle from a previous run.
 
 .IP "\fB\-\-finish\-install\fP" 10
 Phase 3: push the bundle produced by
@@ -442,9 +526,9 @@ or via a file with \-\-hosts\-list.
 
 .B apt\-offline remote myserver \-\-update \-\-upgrade
 
-.B One-shot against multiple hosts:
+.B One-shot against multiple hosts with caching enabled:
 
-.B apt\-offline remote host1 host2 host3 \-\-update \-\-upgrade
+.B apt\-offline remote host1 host2 host3 \-\-update \-\-upgrade \-\-cache\-metadata
 
 .B Split workflow (local machine goes offline between phases):
 
