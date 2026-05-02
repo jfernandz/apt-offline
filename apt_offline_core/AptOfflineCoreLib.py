@@ -1731,7 +1731,6 @@ def fetcher(args):
                     dest = os.path.join(Str_DownloadDir, pkgFileWithType)
                     shutil.copy2(cached, dest)
                     log.success("%s found in metadata cache%s\n" % (PackageFile, LINE_OVERWRITE_FULL))
-                    FetcherInstance.addItem(download_size)
                     FetcherInstance.writeData(dest)
                     FetcherInstance.updateValue(download_size)
                     FetcherInstance.completed()
