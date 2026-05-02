@@ -357,8 +357,13 @@ def remote(args):
         log.err("Cannot specify both SSH_HOST and --hosts-list\n")
         sys.exit(1)
     if not args.remote_host and not args.hosts_list:
-        log.err("Must specify either SSH_HOST or --hosts-list\n")
-        sys.exit(1)
+        fallback = os.path.join(args.work_dir, "hosts.list") if args.work_dir else None
+        if fallback and os.path.isfile(fallback):
+            args.hosts_list = fallback
+            log.msg("==> Using hosts list: %s\n" % fallback)
+        else:
+            log.err("Must specify either SSH_HOST or --hosts-list\n")
+            sys.exit(1)
     if args.remote_phase is not None and (args.keep_latest is not None or args.clean_remote):
         log.err("--keep-latest and --clean-remote cannot be combined with --fetch, --download or --finish-install\n")
         sys.exit(1)
