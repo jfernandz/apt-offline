@@ -221,8 +221,13 @@ def _remote_single(host, args, log):
     # ------------------------------------------------------------------ phase 2
     if phase == "download":
         if not os.path.isdir(work_dir):
-            raise RuntimeError("no local state for %s — run --fetch first" % host)
-        state = _latest_state(work_dir)
+            log.warn("No local state for %s — run --fetch first\n" % host)
+            return "skipped"
+        try:
+            state = _latest_state(work_dir)
+        except FileNotFoundError:
+            log.warn("No local state for %s — run --fetch first\n" % host)
+            return "skipped"
         op_dir = os.path.join(work_dir, state["op_dir"])
         local_sig = os.path.join(op_dir, "apt-offline.sig")
         local_bundle = os.path.join(op_dir, "bundle.zip")
@@ -238,8 +243,13 @@ def _remote_single(host, args, log):
     # ------------------------------------------------------------------ phase 3
     if phase == "finish-install":
         if not os.path.isdir(work_dir):
-            raise RuntimeError("no local state for %s — run --fetch first" % host)
-        state = _latest_state(work_dir)
+            log.warn("No local state for %s — run --fetch first\n" % host)
+            return "skipped"
+        try:
+            state = _latest_state(work_dir)
+        except FileNotFoundError:
+            log.warn("No local state for %s — run --fetch first\n" % host)
+            return "skipped"
         _check_remote_prereqs(host)
         sudo_prefix = _detect_sudo(host)
         op_dir = os.path.join(work_dir, state["op_dir"])
@@ -315,9 +325,9 @@ def _remote_single(host, args, log):
     _transfer_get(transfer, host, remote_sig, local_sig)
 
     if os.path.getsize(local_sig) == 0:
-        log.success("Nothing to do on %s — system is already up to date\n" % host)
+        log.warn("Nothing to do on %s — system is already up to date\n" % host)
         shutil.rmtree(op_dir, ignore_errors=True)
-        return
+        return "skipped"
 
     with open(local_state, "w") as f:
         json.dump({
@@ -357,7 +367,7 @@ def _remote_single(host, args, log):
     elif args.op_install_packages:
         _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "install"] + apt_opts + args.op_install_packages)
 
-    open(os.path.join(op_dir, "install.done"), "w").close()
+    _mark_installed(op_dir)
     log.success("Operation completed successfully for %s\n" % host)
 
     if args.reboot:
@@ -417,22 +427,28 @@ def remote(args):
         hosts = args.remote_host
 
     succeeded = []
+    skipped = []
     failed = []
 
     for host in hosts:
         if len(hosts) > 1:
             log.msg("\n==> Host: %s\n" % host)
         try:
-            _remote_single(host, args, log)
-            succeeded.append(host)
+            result = _remote_single(host, args, log)
+            if result == "skipped":
+                skipped.append(host)
+            else:
+                succeeded.append(host)
         except Exception as e:
             log.err("FAILED %s: %s\n" % (host, e))
             failed.append(host)
 
     if len(hosts) > 1:
-        log.msg("\n==> Batch summary: %d succeeded, %d failed\n" % (len(succeeded), len(failed)))
+        log.msg("\n==> Batch summary: %d succeeded, %d skipped, %d failed\n" % (len(succeeded), len(skipped), len(failed)))
         for host in succeeded:
             log.msg("   OK: %s\n" % host)
+        for host in skipped:
+            log.warn("%s\n" % host)
         for host in failed:
             log.err("%s\n" % host)
         if failed:

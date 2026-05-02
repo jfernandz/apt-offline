@@ -1854,8 +1854,9 @@ def fetcher(args):
                 log.err("\nInterrupted by user. Exiting!\n")
                 sys.exit(0)
 
-    sys.stdout.write("\r" + " " * 80 + "\r")
-    sys.stdout.flush()
+    if sys.stdout.isatty():
+        sys.stdout.write("\r" + " " * 80 + "\r")
+        sys.stdout.flush()
     if args.bundle_file:
         log.msg("Downloaded data to %s\n" % (Str_BundleFile))
     else:

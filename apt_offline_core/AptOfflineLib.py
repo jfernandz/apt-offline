@@ -229,8 +229,10 @@ class Log:
             WConio.textcolor(self.color[color])
 
     def _clear_line(self):
-        sys.stdout.write("\r" + " " * 80 + "\r")
-        sys.stdout.flush()
+        if sys.stdout.isatty():
+            sys.stdout.write("\r" + " " * 80 + "\r")
+            sys.stdout.flush()
+
 
     def msg(self, msg):
         """Print general messages. If locking is available use them."""
@@ -251,7 +253,7 @@ class Log:
 
         self._clear_line()
         self.set_color("Magenta")
-        sys.stderr.write("WARN: " + msg)
+        sys.stderr.write(" WARN: " + msg)
         sys.stderr.flush()
         self.set_color("SwitchOffAttributes")
 
