@@ -1712,27 +1712,33 @@ def fetcher(args):
             def _metadata_cache_key(url):
                 return hashlib.sha256(url.encode()).hexdigest()
 
-            def _write_metadata_cache(url, pkg_file):
+            def _write_metadata_cache(url, pkg_file, sentinel=False):
                 if not Str_MetadataCacheDir:
-                    return
-                src = os.path.join(Str_DownloadDir, pkg_file)
-                if not os.path.exists(src):
                     return
                 os.makedirs(Str_MetadataCacheDir, exist_ok=True)
                 dst = os.path.join(Str_MetadataCacheDir, _metadata_cache_key(url))
                 tmp = dst + ".tmp"
-                shutil.copy2(src, tmp)
+                if sentinel:
+                    open(tmp, "wb").close()
+                else:
+                    src = os.path.join(Str_DownloadDir, pkg_file)
+                    if not os.path.exists(src):
+                        return
+                    shutil.copy2(src, tmp)
                 os.rename(tmp, dst)
 
             metadata_cache_hit = False
             if Str_MetadataCacheDir:
                 cached = os.path.join(Str_MetadataCacheDir, _metadata_cache_key(PackageName))
                 if os.path.exists(cached):
-                    dest = os.path.join(Str_DownloadDir, pkgFileWithType)
-                    shutil.copy2(cached, dest)
-                    log.success("%s found in metadata cache%s\n" % (PackageFile, LINE_OVERWRITE_FULL))
-                    FetcherInstance.writeData(dest)
-                    FetcherInstance.updateValue(download_size)
+                    if os.path.getsize(cached) > 0:
+                        dest = os.path.join(Str_DownloadDir, pkgFileWithType)
+                        shutil.copy2(cached, dest)
+                        log.success("%s found in metadata cache%s\n" % (PackageName, LINE_OVERWRITE_FULL))
+                        FetcherInstance.writeData(dest)
+                        FetcherInstance.updateValue(download_size)
+                    else:
+                        log.verbose("%s not available (negative cache)%s\n" % (PackageFile, LINE_OVERWRITE_FULL))
                     FetcherInstance.completed()
                     metadata_cache_hit = True
 
@@ -1773,7 +1779,7 @@ def fetcher(args):
                         # By increasing the counter, the active/total item list is reflected correctly
                         FetcherInstance.items += 1
                         if DownloadPackages(NewUrl, NewPackageFile) is True:
-                            _write_metadata_cache(NewUrl, NewPackageFile)
+                            _write_metadata_cache(PackageName, NewPackageFile)
                             reallyFailed = False
                             break
                         else:
@@ -1787,6 +1793,7 @@ def fetcher(args):
                             "Giving up on URL %s %s\n" % (
                                 NewUrl, LINE_OVERWRITE_FULL)
                         )
+                        _write_metadata_cache(PackageName, None, sentinel=True)
                 else:
                     _write_metadata_cache(PackageName, pkgFileWithType)
 
