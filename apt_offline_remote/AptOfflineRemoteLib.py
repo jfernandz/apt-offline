@@ -190,16 +190,14 @@ def _remote_single(host, args, log):
     phase = args.remote_phase  # "fetch", "download", "finish-install", or None (full)
     keep = args.keep_latest
     clean_remote = args.clean_remote
-    clean_pkg_cache = args.clean_pkg_cache or args.clean_cache
-    clean_metadata_cache = args.clean_metadata_cache or args.clean_cache
 
-    # standalone cleanup — no phase, no operation flags
+    # standalone per-host cleanup — no phase, no operation flags
     if (phase is None
             and not args.op_update
             and not args.op_upgrade
             and not args.op_dist_upgrade
             and not args.op_install_packages
-            and (keep is not None or clean_remote or clean_pkg_cache or clean_metadata_cache)):
+            and (keep is not None or clean_remote)):
         if clean_remote:
             log.msg("==> Cleaning remote cache on %s...\n" % host)
             _ssh_run(host, ["rm", "-rf", _REMOTE_CACHE])
@@ -210,12 +208,6 @@ def _remote_single(host, args, log):
             else:
                 _cleanup_host(work_dir, keep)
                 log.msg("==> Cleaned up local work dir for %s (kept %d)\n" % (host, keep))
-        for label, subdir in [("pkg-cache", "pkg-cache"), ("metadata-cache", "metadata-cache")]:
-            if (label == "pkg-cache" and clean_pkg_cache) or (label == "metadata-cache" and clean_metadata_cache):
-                cache_path = os.path.join(base_dir, subdir)
-                if os.path.isdir(cache_path):
-                    shutil.rmtree(cache_path)
-                    log.msg("==> Cleaned %s (%s)\n" % (label, cache_path))
         return
 
     # ------------------------------------------------------------------ phase 2
@@ -425,6 +417,29 @@ def remote(args):
             sys.exit(1)
     else:
         hosts = args.remote_host
+
+    if args.work_dir:
+        base_dir = args.work_dir
+    elif args.temp:
+        base_dir = "/tmp/apt-offline"
+    else:
+        base_dir = os.path.expanduser("~/.cache/apt-offline")
+
+    clean_pkg_cache = args.clean_pkg_cache or args.clean_cache
+    clean_metadata_cache = args.clean_metadata_cache or args.clean_cache
+    for label, subdir in [("pkg-cache", "pkg-cache"), ("metadata-cache", "metadata-cache")]:
+        if (label == "pkg-cache" and clean_pkg_cache) or (label == "metadata-cache" and clean_metadata_cache):
+            cache_path = os.path.join(base_dir, subdir)
+            if os.path.isdir(cache_path):
+                shutil.rmtree(cache_path)
+                log.msg("==> Cleaned %s (%s)\n" % (label, cache_path))
+
+    if not (args.remote_phase is not None
+            or args.op_update or args.op_upgrade
+            or args.op_dist_upgrade or args.op_install_packages
+            or args.keep_latest is not None or args.clean_remote
+            or args.status):
+        return
 
     succeeded = []
     skipped = []
