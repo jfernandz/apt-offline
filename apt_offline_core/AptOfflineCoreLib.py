@@ -1694,23 +1694,34 @@ def fetcher(args):
                 if not Str_MetadataCacheDir:
                     return
                 os.makedirs(Str_MetadataCacheDir, exist_ok=True)
-                dst = os.path.join(Str_MetadataCacheDir, _metadata_cache_key(url))
+                key = _metadata_cache_key(url)
+                dst = os.path.join(Str_MetadataCacheDir, key)
                 tmp = dst + ".tmp"
                 if sentinel:
                     open(tmp, "wb").close()
+                    os.rename(tmp, dst)
                 else:
                     src = os.path.join(Str_DownloadDir, pkg_file)
                     if not os.path.exists(src):
                         return
                     shutil.copy2(src, tmp)
-                os.rename(tmp, dst)
+                    os.rename(tmp, dst)
+                    name_tmp = dst + ".name.tmp"
+                    with open(name_tmp, "w") as f:
+                        f.write(pkg_file)
+                    os.rename(name_tmp, dst + ".name")
 
             metadata_cache_hit = False
             if Str_MetadataCacheDir:
                 cached = os.path.join(Str_MetadataCacheDir, _metadata_cache_key(PackageName))
                 if os.path.exists(cached):
                     if os.path.getsize(cached) > 0:
-                        dest = os.path.join(Str_DownloadDir, pkgFileWithType)
+                        name_file = cached + ".name"
+                        actual_name = pkgFileWithType
+                        if os.path.exists(name_file):
+                            with open(name_file) as f:
+                                actual_name = f.read().strip() or pkgFileWithType
+                        dest = os.path.join(Str_DownloadDir, actual_name)
                         shutil.copy2(cached, dest)
                         log.success("%s found in metadata cache\n" % PackageName)
                         FetcherInstance.writeData(dest)
