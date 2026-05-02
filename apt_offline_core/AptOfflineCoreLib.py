@@ -126,7 +126,6 @@ apt_bug_file_format = "__apt__bug__report"
 # These are spaces which will overwrite the progressbar left mess
 LINE_OVERWRITE_SMALL = " " * 10
 LINE_OVERWRITE_MID = " " * 30
-LINE_OVERWRITE_FULL = " " * 60
 
 Bool_Verbose = False
 # Bool_TestWindows = True
@@ -1070,17 +1069,15 @@ def errfunc(errno, errormsg, filename):
     # 13 is for "Permission Denied" when you don't have privileges to access the destination
     if errno in retriable_error_codes:
         log.verbose(
-            "%s - %s - %s %s\n" % (filename, errno,
-                                   errormsg, LINE_OVERWRITE_FULL)
+            "%s - %s - %s\n" % (filename, errno, errormsg)
         )
         log.verbose("Will still try with other package uris\n")
     elif errno == 10054:
-        log.err("%s - %s - %s %s\n" %
-                (filename, errno, errormsg, LINE_OVERWRITE_FULL))
+        log.err("%s - %s - %s\n" % (filename, errno, errormsg))
     elif errno == 504:
         log.err(
-            "%s failed with error %s:%s %s\n"
-            % (filename, errno, errormsg, LINE_OVERWRITE_FULL)
+            "%s failed with error %s:%s\n"
+            % (filename, errno, errormsg)
         )
         errlist.append(filename)
     elif errno == 407 or errno == 2:
@@ -1367,14 +1364,10 @@ def fetcher(args):
             if not self.BugReports:
                 return False
 
-            log.msg("Fetching bug report for %s%s\n" %
-                    (pkgName, LINE_OVERWRITE_FULL))
+            log.msg("Fetching bug report for %s\n" % pkgName)
             # INFO: Payload is written to destination inside the method
             self.FetchBugsDebian(pkgName)
-            log.success(
-                "Fetched bug report for %s%s\n" % (
-                    pkgName, LINE_OVERWRITE_FULL)
-            )
+            log.success("Fetched bug report for %s\n" % pkgName)
 
         def buildChangelog(self, pkgPath, installedVersion):
             """Return latest changes against installedVersion"""
@@ -1600,10 +1593,7 @@ def fetcher(args):
                 if FetcherInstance.verifyPayloadIntegrity(full_file_path, checksum):
                     if not checksum or ":" not in checksum:
                         unverified_cache_hits.append(pkgFile)
-                    log.success(
-                        "%s found in cache%s\n" % (
-                            PackageName, LINE_OVERWRITE_FULL)
-                    )
+                    log.success("%s found in cache\n" % PackageName)
                     # INFO: When we copy the payload from the local cache, we need to update the progressbar
                     # Hence we are doing it explicitly for local cache found files
                     FetcherInstance.addItem(download_size)
@@ -1617,20 +1607,14 @@ def fetcher(args):
                         )
                 else:
                     log.verbose(
-                        "%s checksum mismatch. Skipping file %s\n"
-                        % (pkgFile, LINE_OVERWRITE_FULL)
+                        "%s checksum mismatch. Skipping file\n" % pkgFile
                     )
                     log.msg(
-                        "Downloading %s - %s %s\n"
-                        % (
-                            PackageName,
-                            log.calcSize(download_size / 1024),
-                            LINE_OVERWRITE_FULL,
-                        )
+                        "Downloading %s - %s\n"
+                        % (PackageName, log.calcSize(download_size / 1024))
                     )
                     if FetcherInstance.download_from_web(url, pkgFile, Str_DownloadDir):
-                        log.success("%s done %s\n" %
-                                    (PackageName, LINE_OVERWRITE_FULL))
+                        log.success("%s done\n" % PackageName)
                         FetcherInstance.writeData(pkgFile)
                         FetcherInstance.writeToCache(pkgFile)
                         FetcherInstance.processBugReports(PackageName)
@@ -1644,16 +1628,11 @@ def fetcher(args):
                         errlist.append(PackageName)
             else:
                 log.msg(
-                    "Downloading %s - %s %s\n"
-                    % (
-                        PackageName,
-                        log.calcSize(download_size / 1024),
-                        LINE_OVERWRITE_FULL,
-                    )
+                    "Downloading %s - %s\n"
+                    % (PackageName, log.calcSize(download_size / 1024))
                 )
                 if FetcherInstance.download_from_web(url, pkgFile, Str_DownloadDir):
-                    log.success("%s done %s\n" %
-                                (PackageName, LINE_OVERWRITE_FULL))
+                    log.success("%s done\n" % PackageName)
                     FetcherInstance.writeData(pkgFile)
                     FetcherInstance.writeToCache(pkgFile)
                     FetcherInstance.processBugReports(PackageName)
@@ -1671,8 +1650,7 @@ def fetcher(args):
                 if FetcherInstance.download_from_web(
                     PackageName, PackageFile, Str_DownloadDir
                 ):
-                    log.success("%s done %s\n" %
-                                (PackageName, LINE_OVERWRITE_FULL))
+                    log.success("%s done\n" % PackageName)
                     FetcherInstance.writeData(
                         os.path.join(Str_DownloadDir, PackageFile)
                     )
@@ -1734,16 +1712,16 @@ def fetcher(args):
                     if os.path.getsize(cached) > 0:
                         dest = os.path.join(Str_DownloadDir, pkgFileWithType)
                         shutil.copy2(cached, dest)
-                        log.success("%s found in metadata cache%s\n" % (PackageName, LINE_OVERWRITE_FULL))
+                        log.success("%s found in metadata cache\n" % PackageName)
                         FetcherInstance.writeData(dest)
                         FetcherInstance.updateValue(download_size)
                     else:
-                        log.verbose("%s not available (negative cache)%s\n" % (PackageFile, LINE_OVERWRITE_FULL))
+                        log.verbose("%s not available (negative cache)\n" % PackageFile)
                     FetcherInstance.completed()
                     metadata_cache_hit = True
 
             if not metadata_cache_hit:
-                log.msg("Downloading %s %s\n" % (PackageName, LINE_OVERWRITE_FULL))
+                log.msg("Downloading %s\n" % PackageName)
                 if (
                     DownloadPackages(PackageName, pkgFileWithType) is False
                     and guiTerminateSignal is False
@@ -1766,10 +1744,7 @@ def fetcher(args):
                             + Format
                         )
                         NewUrl = url.replace(PackageFormat, Format)
-                        log.verbose(
-                            "Retry download %s %s\n" % (
-                                NewUrl, LINE_OVERWRITE_FULL)
-                        )
+                        log.verbose("Retry download %s\n" % NewUrl)
 
                         # INFO: Why are we doing this?
                         # Because ProgressBar's total_item is fixed
@@ -1783,16 +1758,10 @@ def fetcher(args):
                             reallyFailed = False
                             break
                         else:
-                            log.verbose(
-                                "Failed with URL %s %s\n" % (
-                                    NewUrl, LINE_OVERWRITE_FULL)
-                            )
+                            log.verbose("Failed with URL %s\n" % NewUrl)
                             FetcherInstance.completed()
                     if reallyFailed is True:
-                        log.verbose(
-                            "Giving up on URL %s %s\n" % (
-                                NewUrl, LINE_OVERWRITE_FULL)
-                        )
+                        log.verbose("Giving up on URL %s\n" % NewUrl)
                         _write_metadata_cache(PackageName, None, sentinel=True)
                 else:
                     _write_metadata_cache(PackageName, pkgFileWithType)
@@ -1874,10 +1843,12 @@ def fetcher(args):
                 log.err("\nInterrupted by user. Exiting!\n")
                 sys.exit(0)
 
+    sys.stdout.write("\r" + " " * 80 + "\r")
+    sys.stdout.flush()
     if args.bundle_file:
-        log.msg("\nDownloaded data to %s\n" % (Str_BundleFile))
+        log.msg("Downloaded data to %s\n" % (Str_BundleFile))
     else:
-        log.msg("\nDownloaded data to %s\n" % (Str_DownloadDir))
+        log.msg("Downloaded data to %s\n" % (Str_DownloadDir))
 
     if unverified_cache_hits:
         log.warn("%d package(s) served from cache without checksum verification\n" % len(unverified_cache_hits))

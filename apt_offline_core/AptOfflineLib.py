@@ -228,15 +228,18 @@ class Log:
         elif self.platform == "microsoft":
             WConio.textcolor(self.color[color])
 
+    def _clear_line(self):
+        sys.stdout.write("\r" + " " * 80 + "\r")
+        sys.stdout.flush()
+
     def msg(self, msg):
         """Print general messages. If locking is available use them."""
         if self.lock:
             self.DispLock.acquire()
 
-        # self.set_color( 'White' )
+        self._clear_line()
         sys.stdout.write(msg)
         sys.stdout.flush()
-        # self.set_color( 'SwitchOffAttributes' )
 
         if self.lock:
             self.DispLock.release()
@@ -246,6 +249,7 @@ class Log:
         if self.lock:
             self.DispLock.acquire()
 
+        self._clear_line()
         self.set_color("Magenta")
         sys.stderr.write("WARN: " + msg)
         sys.stderr.flush()
@@ -259,6 +263,7 @@ class Log:
         if self.lock:
             self.DispLock.acquire()
 
+        self._clear_line()
         self.set_color("Red")
         sys.stderr.write("ERROR: " + msg)
         sys.stderr.flush()
@@ -272,6 +277,7 @@ class Log:
         if self.lock:
             self.DispLock.acquire()
 
+        self._clear_line()
         self.set_color("Green")
         sys.stdout.write(msg)
         sys.stdout.flush()
@@ -287,6 +293,7 @@ class Log:
             self.DispLock.acquire()
 
         if self.VERBOSE is True:
+            self._clear_line()
             self.set_color("Magenta")
             sys.stdout.write("VERBOSE: " + msg)
             sys.stdout.flush()
@@ -372,7 +379,7 @@ class ProgressBar(object):
 
     def __str__(self):
         # compute display fraction
-        percentFilled = (self.value - self.min) / self.span
+        percentFilled = (self.value - self.min) / self.span if self.span else 1.0
         widthFilled = int(self.width * percentFilled + 0.5)
         return (
             "["
