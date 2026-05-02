@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import glob
 import json
 import os
@@ -18,6 +19,49 @@ from apt_offline_core.AptOfflineSSHLib import (
 )
 
 _REMOTE_CACHE = ".cache/apt-offline"
+_OP_LABELS = {"upd": "update", "upg": "upgrade", "dup": "dist-upgrade", "ipk": "install-pkgs"}
+_GREEN = "\033[32m"
+_RED = "\033[31m"
+_DIM = "\033[2m"
+_RESET = "\033[0m"
+
+
+def _phase_str(label, done, use_color):
+    tick = (_GREEN + "✓" + _RESET) if (done and use_color) else ("✓" if done else (_DIM + "✗" + _RESET) if use_color else "✗")
+    return "  %s %s" % (label, tick)
+
+
+def _show_status(host, work_dir, log):
+    use_color = sys.stdout.isatty()
+    op_dirs = sorted(
+        [d for d in glob.glob(os.path.join(work_dir, "*-*")) if os.path.isdir(d)]
+    )
+    if not op_dirs:
+        log.msg("  (no runs)\n")
+        return
+    for op_dir in op_dirs:
+        run_name = os.path.basename(op_dir)
+        parts = run_name.split("-", 1)
+        tag = parts[1] if len(parts) > 1 else "?"
+        op_label = _OP_LABELS.get(tag, tag)
+        try:
+            ts = datetime.datetime.fromtimestamp(int(parts[0])).strftime("%Y-%m-%d %H:%M")
+        except (ValueError, OSError):
+            ts = parts[0]
+        fetch_done = os.path.exists(os.path.join(op_dir, "apt-offline.sig")) and \
+                     os.path.getsize(os.path.join(op_dir, "apt-offline.sig")) > 0
+        download_done = os.path.exists(os.path.join(op_dir, "bundle.zip")) and \
+                        os.path.getsize(os.path.join(op_dir, "bundle.zip")) > 0
+        install_done = os.path.exists(os.path.join(op_dir, "install.done"))
+        line = "  %-16s  %-14s%s%s%s%s\n" % (
+            ts, op_label,
+            _phase_str("fetch", fetch_done, use_color),
+            _phase_str("download", download_done, use_color),
+            _phase_str("install", install_done, use_color),
+            ("  [%s]" % run_name) if not use_color else ("  " + _DIM + run_name + _RESET),
+        )
+        sys.stdout.write(line)
+    sys.stdout.flush()
 
 
 
@@ -104,11 +148,11 @@ def _cleanup_host(work_dir, keep):
 
 
 def _op_tag(args):
-    if args.remote_dist_upgrade:
+    if args.op_dist_upgrade:
         return "dup"
-    if args.remote_upgrade:
+    if args.op_upgrade:
         return "upg"
-    if args.remote_update:
+    if args.op_update:
         return "upd"
     return "ipk"
 
@@ -122,16 +166,20 @@ def _remote_single(host, args, log):
         base_dir = os.path.expanduser("~/.cache/apt-offline")
     work_dir = os.path.join(base_dir, host)
 
+    if args.status:
+        _show_status(host, work_dir, log)
+        return
+
     phase = args.remote_phase  # "fetch", "download", "finish-install", or None (full)
     keep = args.keep_latest
     clean_remote = args.clean_remote
 
     # standalone cleanup — no phase, no operation flags
     if (phase is None
-            and not args.remote_update
-            and not args.remote_upgrade
-            and not args.remote_dist_upgrade
-            and not args.remote_install_packages
+            and not args.op_update
+            and not args.op_upgrade
+            and not args.op_dist_upgrade
+            and not args.op_install_packages
             and (keep is not None or clean_remote)):
         if clean_remote:
             log.msg("==> Cleaning remote cache on %s...\n" % host)
@@ -189,6 +237,7 @@ def _remote_single(host, args, log):
             _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "upgrade"] + apt_opts)
         elif state["install_packages"]:
             _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "install"] + apt_opts + state["install_packages"])
+        open(os.path.join(op_dir, "install.done"), "w").close()
         log.success("Operation completed successfully for %s\n" % host)
         if args.reboot:
             log.msg("==> Rebooting %s...\n" % host)
@@ -196,10 +245,10 @@ def _remote_single(host, args, log):
         return
 
     # --------------------------------------------------- phase 1 / full pipeline
-    if (not args.remote_update
-            and not args.remote_upgrade
-            and not args.remote_dist_upgrade
-            and not args.remote_install_packages):
+    if (not args.op_update
+            and not args.op_upgrade
+            and not args.op_dist_upgrade
+            and not args.op_install_packages):
         log.err("At least one of --update, --upgrade, --dist-upgrade or --install-packages must be specified\n")
         raise SystemExit(1)
 
@@ -226,13 +275,13 @@ def _remote_single(host, args, log):
     steps = 2 if phase == "fetch" else 5
     log.msg("==> [1/%d] Generating signature on %s...\n" % (steps, host))
     set_cmd = sudo_prefix + ["apt-offline", "set", remote_sig]
-    if args.remote_install_packages:
-        set_cmd += ["--install-packages"] + args.remote_install_packages
-    if args.remote_update:
+    if args.op_install_packages:
+        set_cmd += ["--install-packages"] + args.op_install_packages
+    if args.op_update:
         set_cmd += ["--update"]
-    if args.remote_upgrade:
+    if args.op_upgrade:
         set_cmd += ["--upgrade"]
-    if args.remote_dist_upgrade:
+    if args.op_dist_upgrade:
         set_cmd += ["--upgrade", "--upgrade-type", "dist-upgrade"]
     _ssh_run(host, set_cmd)
 
@@ -248,10 +297,10 @@ def _remote_single(host, args, log):
         json.dump({
             "timestamp": timestamp,
             "op_dir": "%d-%s" % (timestamp, tag),
-            "update": args.remote_update,
-            "upgrade": args.remote_upgrade,
-            "dist_upgrade": args.remote_dist_upgrade,
-            "install_packages": args.remote_install_packages or [],
+            "update": args.op_update,
+            "upgrade": args.op_upgrade,
+            "dist_upgrade": args.op_dist_upgrade,
+            "install_packages": args.op_install_packages or [],
         }, f, indent=2)
 
     if phase == "fetch":
@@ -273,13 +322,14 @@ def _remote_single(host, args, log):
 
     apt_env = ["env", "DEBIAN_FRONTEND=noninteractive"]
     apt_opts = ["-y", "-o", "Dpkg::Options::=--force-confold"]
-    if args.remote_dist_upgrade:
+    if args.op_dist_upgrade:
         _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "dist-upgrade"] + apt_opts)
-    elif args.remote_upgrade:
+    elif args.op_upgrade:
         _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "upgrade"] + apt_opts)
-    elif args.remote_install_packages:
-        _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "install"] + apt_opts + args.remote_install_packages)
+    elif args.op_install_packages:
+        _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "install"] + apt_opts + args.op_install_packages)
 
+    open(os.path.join(op_dir, "install.done"), "w").close()
     log.success("Operation completed successfully for %s\n" % host)
 
     if args.reboot:
@@ -313,10 +363,10 @@ def remote(args):
         log.err("--keep-latest and --clean-remote cannot be combined with --fetch, --download or --finish-install\n")
         sys.exit(1)
     if args.remote_phase in ("download", "finish-install") and (
-            args.remote_update
-            or args.remote_upgrade
-            or args.remote_dist_upgrade
-            or args.remote_install_packages):
+            args.op_update
+            or args.op_upgrade
+            or args.op_dist_upgrade
+            or args.op_install_packages):
         log.err("--update, --upgrade, --dist-upgrade and --install-packages cannot be combined with --download or --finish-install (operation was already saved by --fetch)\n")
         sys.exit(1)
     if args.force and args.remote_phase in ("fetch", "finish-install"):
@@ -391,28 +441,28 @@ def register_subparser(subparsers, global_options):
 
     parser_remote.add_argument(
         "--update",
-        dest="remote_update",
+        dest="op_update",
         help="Generate signature to update APT database on the remote",
         action="store_true",
     )
 
     parser_remote.add_argument(
         "--upgrade",
-        dest="remote_upgrade",
+        dest="op_upgrade",
         help="Generate signature of packages to be upgraded on the remote",
         action="store_true",
     )
 
     parser_remote.add_argument(
         "--dist-upgrade",
-        dest="remote_dist_upgrade",
+        dest="op_dist_upgrade",
         help="Perform a full dist-upgrade on the remote",
         action="store_true",
     )
 
     parser_remote.add_argument(
         "--install-packages",
-        dest="remote_install_packages",
+        dest="op_install_packages",
         help="Packages to install on the remote machine",
         action="store",
         type=str,
@@ -476,6 +526,14 @@ def register_subparser(subparsers, global_options):
         "--clean-remote",
         dest="clean_remote",
         help="Remove ~/.cache/apt-offline on the remote host(s)",
+        action="store_true",
+        default=False,
+    )
+
+    parser_remote.add_argument(
+        "--status",
+        dest="status",
+        help="Show the pipeline status of local runs for the given host(s)",
         action="store_true",
         default=False,
     )
