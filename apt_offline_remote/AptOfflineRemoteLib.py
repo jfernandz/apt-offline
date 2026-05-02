@@ -176,6 +176,8 @@ def _remote_single(host, args, log):
     phase = args.remote_phase  # "fetch", "download", "finish-install", or None (full)
     keep = args.keep_latest
     clean_remote = args.clean_remote
+    clean_pkg_cache = args.clean_pkg_cache or args.clean_cache
+    clean_metadata_cache = args.clean_metadata_cache or args.clean_cache
 
     # standalone cleanup — no phase, no operation flags
     if (phase is None
@@ -183,7 +185,7 @@ def _remote_single(host, args, log):
             and not args.op_upgrade
             and not args.op_dist_upgrade
             and not args.op_install_packages
-            and (keep is not None or clean_remote)):
+            and (keep is not None or clean_remote or clean_pkg_cache or clean_metadata_cache)):
         if clean_remote:
             log.msg("==> Cleaning remote cache on %s...\n" % host)
             _ssh_run(host, ["rm", "-rf", _REMOTE_CACHE])
@@ -194,6 +196,12 @@ def _remote_single(host, args, log):
             else:
                 _cleanup_host(work_dir, keep)
                 log.msg("==> Cleaned up local work dir for %s (kept %d)\n" % (host, keep))
+        for label, subdir in [("pkg-cache", "pkg-cache"), ("metadata-cache", "metadata-cache")]:
+            if (label == "pkg-cache" and clean_pkg_cache) or (label == "metadata-cache" and clean_metadata_cache):
+                cache_path = os.path.join(base_dir, subdir)
+                if os.path.isdir(cache_path):
+                    shutil.rmtree(cache_path)
+                    log.msg("==> Cleaned %s (%s)\n" % (label, cache_path))
         return
 
     # ------------------------------------------------------------------ phase 2
@@ -369,8 +377,9 @@ def remote(args):
         else:
             log.err("Must specify either SSH_HOST or --hosts-list\n")
             sys.exit(1)
-    if args.remote_phase is not None and (args.keep_latest is not None or args.clean_remote):
-        log.err("--keep-latest and --clean-remote cannot be combined with --fetch, --download or --finish-install\n")
+    if args.remote_phase is not None and (args.keep_latest is not None or args.clean_remote
+                                           or args.clean_cache or args.clean_pkg_cache or args.clean_metadata_cache):
+        log.err("--keep-latest, --clean-remote and cache cleanup flags cannot be combined with --fetch, --download or --finish-install\n")
         sys.exit(1)
     if args.remote_phase in ("download", "finish-install") and (
             args.op_update
@@ -544,6 +553,30 @@ def register_subparser(subparsers, global_options):
         "--clean-remote",
         dest="clean_remote",
         help="Remove ~/.cache/apt-offline on the remote host(s)",
+        action="store_true",
+        default=False,
+    )
+
+    parser_remote.add_argument(
+        "--clean-cache",
+        dest="clean_cache",
+        help="Remove both pkg-cache and metadata-cache under the local work directory",
+        action="store_true",
+        default=False,
+    )
+
+    parser_remote.add_argument(
+        "--clean-pkg-cache",
+        dest="clean_pkg_cache",
+        help="Remove only the pkg-cache under the local work directory",
+        action="store_true",
+        default=False,
+    )
+
+    parser_remote.add_argument(
+        "--clean-metadata-cache",
+        dest="clean_metadata_cache",
+        help="Remove only the metadata-cache under the local work directory",
         action="store_true",
         default=False,
     )
