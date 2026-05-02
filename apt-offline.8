@@ -339,6 +339,8 @@ Remove both
 and
 .B metadata\-cache/
 under the local work directory.
+These caches are shared across all hosts and are removed once regardless
+of how many hosts are specified.
 Cannot be combined with
 .BR \-\-fetch ,
 .B \-\-download
@@ -348,7 +350,8 @@ or
 .IP "\fB\-\-clean\-pkg\-cache\fP" 10
 Remove only the
 .B pkg\-cache/
-directory.
+directory under the local work directory.
+Operates at the work-dir level, not per-host.
 Cannot be combined with
 .BR \-\-fetch ,
 .B \-\-download
@@ -358,7 +361,8 @@ or
 .IP "\fB\-\-clean\-metadata\-cache\fP" 10
 Remove only the
 .B metadata\-cache/
-directory.
+directory under the local work directory.
+Operates at the work-dir level, not per-host.
 Cannot be combined with
 .BR \-\-fetch ,
 .B \-\-download
@@ -370,6 +374,16 @@ Display the pipeline status of local runs for the given host(s).
 For each timestamped operation directory shows the date, operation type,
 and whether the fetch, download and install phases have completed.
 Reads only local state; no SSH connection is made.
+
+.PP
+In a batch run, hosts are reported as
+.B OK
+(succeeded),
+.B WARN
+(skipped — already up to date or no local state for the requested phase), or
+.B ERROR
+(failed).
+Only actual errors produce a non-zero exit code; skipped hosts do not.
 
 .PP
 When none of the phase flags below is given,
