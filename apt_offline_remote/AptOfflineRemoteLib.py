@@ -52,7 +52,12 @@ def _show_status(host, work_dir, log):
                      os.path.getsize(os.path.join(op_dir, "apt-offline.sig")) > 0
         download_done = os.path.exists(os.path.join(op_dir, "bundle.zip")) and \
                         os.path.getsize(os.path.join(op_dir, "bundle.zip")) > 0
-        install_done = os.path.exists(os.path.join(op_dir, "install.done"))
+        state_path = os.path.join(op_dir, "state.json")
+        try:
+            with open(state_path) as f:
+                install_done = json.load(f).get("installed", False)
+        except (OSError, ValueError):
+            install_done = False
         line = "  %-16s  %-14s%s%s%s%s\n" % (
             ts, op_label,
             _phase_str("fetch", fetch_done, use_color),
@@ -139,6 +144,15 @@ def _check_remote_prereqs(host):
             "apt-offline is not installed on %s.\n"
             "Install it with: sudo apt-get install apt-offline" % host
         )
+
+
+def _mark_installed(op_dir):
+    state_path = os.path.join(op_dir, "state.json")
+    with open(state_path) as f:
+        state = json.load(f)
+    state["installed"] = True
+    with open(state_path, "w") as f:
+        json.dump(state, f, indent=2)
 
 
 def _cleanup_host(work_dir, keep):
@@ -249,7 +263,7 @@ def _remote_single(host, args, log):
             _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "upgrade"] + apt_opts)
         elif state["install_packages"]:
             _ssh_run(host, sudo_prefix + apt_env + ["apt-get", "install"] + apt_opts + state["install_packages"])
-        open(os.path.join(op_dir, "install.done"), "w").close()
+        _mark_installed(op_dir)
         log.success("Operation completed successfully for %s\n" % host)
         if args.reboot:
             log.msg("==> Rebooting %s...\n" % host)
@@ -313,6 +327,7 @@ def _remote_single(host, args, log):
             "upgrade": args.op_upgrade,
             "dist_upgrade": args.op_dist_upgrade,
             "install_packages": args.op_install_packages or [],
+            "installed": False,
         }, f, indent=2)
 
     if phase == "fetch":
