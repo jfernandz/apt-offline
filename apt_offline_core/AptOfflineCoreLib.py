@@ -18,6 +18,7 @@
 #    59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             #
 ############################################################################
 
+import hashlib
 import urllib.parse
 import urllib.error
 import urllib.request
@@ -1104,6 +1105,7 @@ def fetcher(args):
     Int_SocketTimeout = args.socket_timeout
     Str_DownloadDir = args.download_dir
     Str_CacheDir = args.cache_dir
+    Str_MetadataCacheDir = getattr(args, 'metadata_cache_dir', None)
     Bool_DisableMD5Check = args.disable_md5check
     Int_NumOfThreads = args.num_of_threads
     Str_BundleFile = args.bundle_file
@@ -1707,55 +1709,87 @@ def fetcher(args):
                 # Remove the already tried format
                 SupportedFormats.remove(PackageFormat)
 
-            log.msg("Downloading %s %s\n" % (PackageName, LINE_OVERWRITE_FULL))
-            if (
-                DownloadPackages(PackageName, pkgFileWithType) is False
-                and guiTerminateSignal is False
-            ):
-                # don't proceed retry if Ctrl+C in cli
-                log.verbose(
-                    "%s failed. Retry with the remaining possible formats\n" % (
-                        url)
-                )
-                FetcherInstance.completed()
+            def _metadata_cache_key(url):
+                return hashlib.sha256(url.encode()).hexdigest()
 
-                # We could fail with the Packages format of what apt gave us. We can try the rest of the formats that apt or the archive could support
-                reallyFailed = True
-                for Format in SupportedFormats:
-                    NewPackageFile = (
-                        pkgFileWithType.rstrip(pkgFileWithType.split(".")[-1]).rstrip(
-                            "."
-                        )
-                        + "."
-                        + Format
-                    )
-                    NewUrl = url.replace(PackageFormat, Format)
+            def _write_metadata_cache(url, pkg_file):
+                if not Str_MetadataCacheDir:
+                    return
+                src = os.path.join(Str_DownloadDir, pkg_file)
+                if not os.path.exists(src):
+                    return
+                os.makedirs(Str_MetadataCacheDir, exist_ok=True)
+                dst = os.path.join(Str_MetadataCacheDir, _metadata_cache_key(url))
+                tmp = dst + ".tmp"
+                shutil.copy2(src, tmp)
+                os.rename(tmp, dst)
+
+            metadata_cache_hit = False
+            if Str_MetadataCacheDir:
+                cached = os.path.join(Str_MetadataCacheDir, _metadata_cache_key(PackageName))
+                if os.path.exists(cached):
+                    dest = os.path.join(Str_DownloadDir, pkgFileWithType)
+                    shutil.copy2(cached, dest)
+                    log.success("%s found in metadata cache%s\n" % (PackageFile, LINE_OVERWRITE_FULL))
+                    FetcherInstance.addItem(download_size)
+                    FetcherInstance.writeData(dest)
+                    FetcherInstance.updateValue(download_size)
+                    FetcherInstance.completed()
+                    metadata_cache_hit = True
+
+            if not metadata_cache_hit:
+                log.msg("Downloading %s %s\n" % (PackageName, LINE_OVERWRITE_FULL))
+                if (
+                    DownloadPackages(PackageName, pkgFileWithType) is False
+                    and guiTerminateSignal is False
+                ):
+                    # don't proceed retry if Ctrl+C in cli
                     log.verbose(
-                        "Retry download %s %s\n" % (
-                            NewUrl, LINE_OVERWRITE_FULL)
+                        "%s failed. Retry with the remaining possible formats\n" % (
+                            url)
                     )
+                    FetcherInstance.completed()
 
-                    # INFO: Why are we doing this?
-                    # Because ProgressBar's total_item is fixed
-                    # And download_from_web's addItem() increases the active item upon every
-                    # cycle through apt's backend archive formats
-                    # This ends up resulting in active items being more than total_items
-                    # By increasing the counter, the active/total item list is reflected correctly
-                    FetcherInstance.items += 1
-                    if DownloadPackages(NewUrl, NewPackageFile) is True:
-                        reallyFailed = False
-                        break
-                    else:
+                    # We could fail with the Packages format of what apt gave us. We can try the rest of the formats that apt or the archive could support
+                    reallyFailed = True
+                    for Format in SupportedFormats:
+                        NewPackageFile = (
+                            pkgFileWithType.rstrip(pkgFileWithType.split(".")[-1]).rstrip(
+                                "."
+                            )
+                            + "."
+                            + Format
+                        )
+                        NewUrl = url.replace(PackageFormat, Format)
                         log.verbose(
-                            "Failed with URL %s %s\n" % (
+                            "Retry download %s %s\n" % (
                                 NewUrl, LINE_OVERWRITE_FULL)
                         )
-                        FetcherInstance.completed()
-                if reallyFailed is True:
-                    log.verbose(
-                        "Giving up on URL %s %s\n" % (
-                            NewUrl, LINE_OVERWRITE_FULL)
-                    )
+
+                        # INFO: Why are we doing this?
+                        # Because ProgressBar's total_item is fixed
+                        # And download_from_web's addItem() increases the active item upon every
+                        # cycle through apt's backend archive formats
+                        # This ends up resulting in active items being more than total_items
+                        # By increasing the counter, the active/total item list is reflected correctly
+                        FetcherInstance.items += 1
+                        if DownloadPackages(NewUrl, NewPackageFile) is True:
+                            _write_metadata_cache(NewUrl, NewPackageFile)
+                            reallyFailed = False
+                            break
+                        else:
+                            log.verbose(
+                                "Failed with URL %s %s\n" % (
+                                    NewUrl, LINE_OVERWRITE_FULL)
+                            )
+                            FetcherInstance.completed()
+                    if reallyFailed is True:
+                        log.verbose(
+                            "Giving up on URL %s %s\n" % (
+                                NewUrl, LINE_OVERWRITE_FULL)
+                        )
+                else:
+                    _write_metadata_cache(PackageName, pkgFileWithType)
 
     # Create two Queues for the requests and responses
     requestQueue = queue.Queue()

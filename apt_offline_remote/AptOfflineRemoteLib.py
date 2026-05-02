@@ -65,9 +65,11 @@ def _show_status(host, work_dir, log):
 
 
 
-def _run_fetcher(sig_path, bundle_path, cache_dir=None):
+def _run_fetcher(sig_path, bundle_path, cache_dir=None, metadata_cache_dir=None):
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
+    if metadata_cache_dir:
+        os.makedirs(metadata_cache_dir, exist_ok=True)
     tmpdir = tempfile.mkdtemp(prefix="apt-offline-")
     saved_cwd = os.getcwd()
     try:
@@ -78,6 +80,7 @@ def _run_fetcher(sig_path, bundle_path, cache_dir=None):
                 socket_timeout=30,
                 download_dir=tmpdir,
                 cache_dir=cache_dir,
+                metadata_cache_dir=metadata_cache_dir,
                 disable_md5check=False,
                 num_of_threads=1,
                 proxy_host=None,
@@ -204,8 +207,9 @@ def _remote_single(host, args, log):
         if args.force and os.path.exists(local_bundle):
             os.remove(local_bundle)
         pkg_cache = None if args.no_pkg_cache else os.path.join(base_dir, "pkg-cache")
+        meta_cache = os.path.join(base_dir, "metadata-cache") if args.cache_metadata else None
         log.msg("==> Creating bundle from %s...\n" % local_sig)
-        _run_fetcher(local_sig, local_bundle, cache_dir=pkg_cache)
+        _run_fetcher(local_sig, local_bundle, cache_dir=pkg_cache, metadata_cache_dir=meta_cache)
         log.success("Bundle created: %s\n" % local_bundle)
         return
 
@@ -311,8 +315,9 @@ def _remote_single(host, args, log):
     if args.force and os.path.exists(local_bundle):
         os.remove(local_bundle)
     pkg_cache = None if args.no_pkg_cache else os.path.join(base_dir, "pkg-cache")
+    meta_cache = os.path.join(base_dir, "metadata-cache") if args.cache_metadata else None
     log.msg("==> [3/5] Creating bundle locally...\n")
-    _run_fetcher(local_sig, local_bundle, cache_dir=pkg_cache)
+    _run_fetcher(local_sig, local_bundle, cache_dir=pkg_cache, metadata_cache_dir=meta_cache)
 
     log.msg("==> [4/5] Sending bundle to remote...\n")
     _transfer_put(transfer, host, local_bundle, remote_bundle)
@@ -504,6 +509,14 @@ def register_subparser(subparsers, global_options):
         "--force",
         dest="force",
         help="Overwrite an existing bundle instead of failing",
+        action="store_true",
+        default=False,
+    )
+
+    parser_remote.add_argument(
+        "--cache-metadata",
+        dest="cache_metadata",
+        help="Cache metadata files (Release, Packages, Translation) under <work-dir>/metadata-cache to avoid re-downloading across hosts (may serve stale data across runs)",
         action="store_true",
         default=False,
     )
