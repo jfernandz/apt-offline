@@ -311,15 +311,27 @@ def _remote_single(host, args, log):
         set_cmd += ["--upgrade"]
     if args.op_dist_upgrade:
         set_cmd += ["--upgrade", "--upgrade-type", "dist-upgrade"]
-    _ssh_run(host, set_cmd)
+    set_error = None
+    try:
+        _ssh_run(host, set_cmd)
+    except subprocess.CalledProcessError as e:
+        set_error = e
 
     log.msg("==> [2/%d] Fetching signature...\n" % steps)
-    _transfer_get(transfer, host, remote_sig, local_sig)
+    try:
+        _transfer_get(transfer, host, remote_sig, local_sig)
+    except subprocess.CalledProcessError:
+        if set_error:
+            raise set_error
+        raise
 
     if os.path.getsize(local_sig) == 0:
         log.warn("Nothing to do on %s — system is already up to date\n" % host)
         shutil.rmtree(op_dir, ignore_errors=True)
         return "skipped"
+
+    if set_error:
+        raise set_error
 
     with open(local_state, "w") as f:
         json.dump({
