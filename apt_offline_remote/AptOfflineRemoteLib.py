@@ -112,6 +112,8 @@ def _detect_sudo(host):
     )
     if result.returncode == 0 and result.stdout.strip().splitlines()[-1] == "0":
         return []
+    if result.returncode == 255:
+        raise RuntimeError("Cannot connect to %s" % host)
     probe = subprocess.run(
         ["ssh", "-o", "LogLevel=QUIET", host, "sudo -n true"],
         capture_output=True
@@ -185,6 +187,20 @@ def _remote_single(host, args, log):
 
     if args.status:
         _show_status(host, work_dir, log)
+        return
+
+    if (args.reboot
+            and not args.op_update and not args.op_upgrade
+            and not args.op_dist_upgrade and not args.op_install_packages
+            and args.remote_phase is None):
+        sudo_prefix = _detect_sudo(host)
+        log.msg("==> Rebooting %s...\n" % host)
+        try:
+            _ssh_run(host, sudo_prefix + ["reboot"])
+        except subprocess.CalledProcessError as e:
+            if e.returncode != 255:
+                raise
+        log.msg("==> Reboot command sent to %s\n" % host)
         return
 
     phase = args.remote_phase  # "fetch", "download", "finish-install", or None (full)
@@ -425,6 +441,9 @@ def remote(args):
     if args.force and args.remote_phase in ("fetch", "finish-install"):
         log.err("--force can only be used with --download or the full pipeline\n")
         sys.exit(1)
+    if args.reboot and args.remote_phase in ("fetch", "download"):
+        log.err("--reboot cannot be combined with --fetch or --download\n")
+        sys.exit(1)
 
     if args.hosts_list:
         try:
@@ -455,7 +474,7 @@ def remote(args):
             or args.op_update or args.op_upgrade
             or args.op_dist_upgrade or args.op_install_packages
             or args.keep_latest is not None or args.clean_remote
-            or args.status):
+            or args.reboot or args.status):
         return
 
     if args.reboot and len(hosts) > 1:
