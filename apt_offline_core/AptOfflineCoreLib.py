@@ -1083,7 +1083,7 @@ def errfunc(errno, errormsg, filename):
             "%s failed with error %s:%s\n"
             % (filename, errno, errormsg)
         )
-        errlist.append(filename)
+        errlist.append((filename, errno, str(errormsg).strip()))
     elif errno == 407 or errno == 2:
         # These, I believe are from OSError/IOError exception.
         # I'll document it as soon as I confirm it.
@@ -1629,7 +1629,7 @@ def fetcher(args):
                             )
                     else:
                         log.err("Failed to download %s\n" % (PackageName))
-                        errlist.append(PackageName)
+                        errlist.append((PackageName, getattr(_errfunc_tls, 'last_errno', None), 'download failed'))
             else:
                 log.msg(
                     "Downloading %s - %s\n"
@@ -1647,7 +1647,7 @@ def fetcher(args):
                         )
                 else:
                     log.err("Failed to download %s\n" % (PackageName))
-                    errlist.append(PackageName)
+                    errlist.append((PackageName, getattr(_errfunc_tls, 'last_errno', None), 'download failed'))
         else:
 
             def DownloadPackages(PackageName, PackageFile):
@@ -1878,14 +1878,23 @@ def fetcher(args):
     # Print the failed files
     if len(errlist) > 0:
         log.err("Some items failed to download. Downloaded data may be incomplete\n")
-        log.err("Please run in verbose mode to see details about failed items\n")
-        log.msg("\n\n")
+        log.msg("\n")
         log.verbose("The following files failed to be downloaded.\n")
         log.verbose(
             "Not all errors are fatal. For eg. Translation files are not present on all mirrors.\n"
         )
-        for error in errlist:
-            log.err("%s failed.\n" % (error))
+        transient = []
+        for url, errno, reason in errlist:
+            if errno in (10054, 504, -3, 10060, 104):
+                note = "transient — may succeed on retry"
+                transient.append(url)
+            elif errno == 404:
+                note = "not found on server"
+            else:
+                note = reason if reason else "unknown error"
+            log.err("%s — %s\n" % (url, note))
+        if transient:
+            log.warn("%d item(s) failed due to network errors and may succeed if you re-run\n" % len(transient))
         sys.exit(100)
     else:
         sys.exit(0)
