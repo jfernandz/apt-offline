@@ -1044,6 +1044,9 @@ def stripper(item):
     return (url, localFile, size, checksum)
 
 
+_errfunc_tls = threading.local()
+
+
 def errfunc(errno, errormsg, filename):
     """We use errfunc to handler errors.
     There are some error codes (-3 and 13 as of now)
@@ -1054,6 +1057,7 @@ def errfunc(errno, errormsg, filename):
     be well accessible.
     This function does the job of behaving accordingly
     as per the error codes."""
+    _errfunc_tls.last_errno = errno
     retriable_error_codes = [-3, 13, 404, 403, 401, 429, 10060, 104, 101010]
     # 104, 'Connection reset by peer'
     # 504 is for gateway timeout
@@ -1733,6 +1737,7 @@ def fetcher(args):
 
             if not metadata_cache_hit:
                 log.msg("Downloading %s\n" % PackageName)
+                _errfunc_tls.last_errno = None
                 if (
                     DownloadPackages(PackageName, pkgFileWithType) is False
                     and guiTerminateSignal is False
@@ -1746,6 +1751,7 @@ def fetcher(args):
 
                     # We could fail with the Packages format of what apt gave us. We can try the rest of the formats that apt or the archive could support
                     reallyFailed = True
+                    all_not_found = (getattr(_errfunc_tls, 'last_errno', None) == 404)
                     for Format in SupportedFormats:
                         NewPackageFile = (
                             pkgFileWithType.rstrip(pkgFileWithType.split(".")[-1]).rstrip(
@@ -1764,16 +1770,20 @@ def fetcher(args):
                         # This ends up resulting in active items being more than total_items
                         # By increasing the counter, the active/total item list is reflected correctly
                         FetcherInstance.items += 1
+                        _errfunc_tls.last_errno = None
                         if DownloadPackages(NewUrl, NewPackageFile) is True:
                             _write_metadata_cache(PackageName, NewPackageFile)
                             reallyFailed = False
                             break
                         else:
+                            if getattr(_errfunc_tls, 'last_errno', None) != 404:
+                                all_not_found = False
                             log.verbose("Failed with URL %s\n" % NewUrl)
                             FetcherInstance.completed()
                     if reallyFailed is True:
                         log.verbose("Giving up on URL %s\n" % NewUrl)
-                        _write_metadata_cache(PackageName, None, sentinel=True)
+                        if all_not_found:
+                            _write_metadata_cache(PackageName, None, sentinel=True)
                 else:
                     _write_metadata_cache(PackageName, pkgFileWithType)
 
