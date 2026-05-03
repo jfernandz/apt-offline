@@ -240,6 +240,25 @@ No flag is needed.
 
 .IP "\fB\-\-reboot\fP" 10
 Reboot the remote machine after a successful operation.
+.B Warning:
+when used with
+.B \-\-hosts\-list
+and some hosts act as SSH jumphosts for others in the list, exercise
+caution with ordering.
+The tool processes hosts sequentially and has no knowledge of jump
+topology.
+If a jumphost is rebooted and the very next host in the list routes
+through it, the SSH tunnel may drop mid-operation (mid-transfer or
+mid
+.BR "apt-get upgrade" )
+leaving the remote in an unknown state \(em the remote process may
+continue running unattended while the tool reports an error.
+Place all hosts that route through a jumphost
+.B before
+that jumphost in the list so it is rebooted last; or avoid
+.B \-\-reboot
+with mixed topologies altogether and reboot manually in dependency
+order after the batch completes.
 
 .IP "\fB\-\-work\-dir DIR\fP" 10
 Local directory under which per-host working directories are created to store

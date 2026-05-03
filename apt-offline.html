@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.24.1 -->
-<!-- CreationDate: Sun May  3 03:58:44 2026 -->
+<!-- CreationDate: Sun May  3 22:13:17 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -418,13 +418,23 @@ needed.</p>
 
 <p><b>--reboot</b></p></td>
 <td width="3%"></td>
-<td width="69%">
+<td width="81%">
 
 
-<p>Reboot the remote machine after a successful
-operation.</p> </td>
-<td width="12%">
-</td></tr>
+<p>Reboot the remote machine after a successful operation.
+<b>Warning:</b> when used with <b>--hosts-list</b> and some
+hosts act as SSH jumphosts for others in the list, exercise
+caution with ordering. The tool processes hosts sequentially
+and has no knowledge of jump topology. If a jumphost is
+rebooted and the very next host in the list routes through
+it, the SSH tunnel may drop mid-operation (mid-transfer or
+mid <b>apt-get upgrade</b>) leaving the remote in an unknown
+state &mdash; the remote process may continue running
+unattended while the tool reports an error. Place all hosts
+that route through a jumphost <b>before</b> that jumphost in
+the list so it is rebooted last; or avoid <b>--reboot</b>
+with mixed topologies altogether and reboot manually in
+dependency order after the batch completes.</p></td></tr>
 </table>
 
 <p style="margin-left:6%;"><b>--work-dir DIR</b></p>

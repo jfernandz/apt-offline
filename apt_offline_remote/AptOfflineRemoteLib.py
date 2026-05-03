@@ -269,7 +269,12 @@ def _remote_single(host, args, log):
         log.success("Operation completed successfully for %s\n" % host)
         if args.reboot:
             log.msg("==> Rebooting %s...\n" % host)
-            _ssh_run(host, sudo_prefix + ["reboot"])
+            try:
+                _ssh_run(host, sudo_prefix + ["reboot"])
+            except subprocess.CalledProcessError as e:
+                if e.returncode != 255:
+                    raise
+            log.msg("==> Reboot command sent to %s\n" % host)
         return
 
     # --------------------------------------------------- phase 1 / full pipeline
@@ -452,6 +457,9 @@ def remote(args):
             or args.keep_latest is not None or args.clean_remote
             or args.status):
         return
+
+    if args.reboot and len(hosts) > 1:
+        log.warn("--reboot with multiple hosts: if any host acts as a jumphost for others in the list, rebooting it may drop mid-operation connections to hosts behind it. Ensure jumphosts appear last in the list.\n")
 
     succeeded = []
     skipped = []
