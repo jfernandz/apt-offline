@@ -50,13 +50,14 @@ def _show_status(host, work_dir, log):
             ts = parts[0]
         fetch_done = os.path.exists(os.path.join(op_dir, "apt-offline.sig")) and \
                      os.path.getsize(os.path.join(op_dir, "apt-offline.sig")) > 0
-        download_done = os.path.exists(os.path.join(op_dir, "bundle.zip")) and \
-                        os.path.getsize(os.path.join(op_dir, "bundle.zip")) > 0
         state_path = os.path.join(op_dir, "state.json")
         try:
             with open(state_path) as f:
-                install_done = json.load(f).get("installed", False)
+                state = json.load(f)
+            download_done = state.get("downloaded", False)
+            install_done = state.get("installed", False)
         except (OSError, ValueError):
+            download_done = False
             install_done = False
         line = "  %-16s  %-14s%s%s%s%s\n" % (
             ts, op_label,
@@ -148,13 +149,21 @@ def _check_remote_prereqs(host):
         )
 
 
-def _mark_installed(op_dir):
+def _mark_state(op_dir, **kwargs):
     state_path = os.path.join(op_dir, "state.json")
     with open(state_path) as f:
         state = json.load(f)
-    state["installed"] = True
+    state.update(kwargs)
     with open(state_path, "w") as f:
         json.dump(state, f, indent=2)
+
+
+def _mark_installed(op_dir):
+    _mark_state(op_dir, installed=True)
+
+
+def _mark_downloaded(op_dir):
+    _mark_state(op_dir, downloaded=True)
 
 
 def _cleanup_host(work_dir, keep):
@@ -245,6 +254,7 @@ def _remote_single(host, args, log):
         meta_cache = os.path.join(base_dir, "metadata-cache") if args.cache_metadata else None
         log.msg("==> Creating bundle from %s...\n" % local_sig)
         _run_fetcher(local_sig, local_bundle, cache_dir=pkg_cache, metadata_cache_dir=meta_cache)
+        _mark_downloaded(op_dir)
         log.success("Bundle created: %s\n" % local_bundle)
         return
 
@@ -258,9 +268,11 @@ def _remote_single(host, args, log):
         except FileNotFoundError:
             log.warn("No local state for %s — run --fetch first\n" % host)
             return "skipped"
+        op_dir = os.path.join(work_dir, state["op_dir"])
+        if not state.get("downloaded", False):
+            raise RuntimeError("bundle for %s was not successfully downloaded — run --download first" % host)
         _check_remote_prereqs(host)
         sudo_prefix = _detect_sudo(host)
-        op_dir = os.path.join(work_dir, state["op_dir"])
         local_bundle = os.path.join(op_dir, "bundle.zip")
         remote_op_dir = "%s/%s" % (_REMOTE_CACHE, state["op_dir"])
         remote_bundle = "%s/bundle.zip" % remote_op_dir
@@ -362,6 +374,7 @@ def _remote_single(host, args, log):
             "upgrade": args.op_upgrade,
             "dist_upgrade": args.op_dist_upgrade,
             "install_packages": args.op_install_packages or [],
+            "downloaded": False,
             "installed": False,
         }, f, indent=2)
 
@@ -376,6 +389,7 @@ def _remote_single(host, args, log):
     meta_cache = os.path.join(base_dir, "metadata-cache") if args.cache_metadata else None
     log.msg("==> [3/5] Creating bundle locally...\n")
     _run_fetcher(local_sig, local_bundle, cache_dir=pkg_cache, metadata_cache_dir=meta_cache)
+    _mark_downloaded(op_dir)
 
     log.msg("==> [4/5] Sending bundle to remote...\n")
     _transfer_put(transfer, host, local_bundle, remote_bundle)
