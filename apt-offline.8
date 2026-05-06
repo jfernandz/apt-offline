@@ -240,6 +240,12 @@ No flag is needed.
 
 .IP "\fB\-\-reboot\fP" 10
 Reboot the remote machine after a successful operation.
+Can also be used standalone (without any operation flag) to reboot one
+or more hosts without performing any other operation.
+Cannot be combined with
+.B \-\-fetch
+or
+.BR \-\-download .
 .B Warning:
 when used with
 .B \-\-hosts\-list
@@ -392,6 +398,12 @@ or
 Display the pipeline status of local runs for the given host(s).
 For each timestamped operation directory shows the date, operation type,
 and whether the fetch, download and install phases have completed.
+Download completion is confirmed via a flag in
+.B state.json
+written only when the fetcher exits without errors, not merely by
+the presence of a
+.B bundle.zip
+file.
 Reads only local state; no SSH connection is made.
 
 .PP
@@ -444,6 +456,9 @@ command exits cleanly with a "nothing to do" message.
 Use
 .B \-\-force
 to overwrite an existing bundle from a previous run.
+If any files fail to download, the failure summary includes the error
+reason and distinguishes transient network failures (which may succeed
+on retry) from permanent ones (404).
 
 .IP "\fB\-\-finish\-install\fP" 10
 Phase 3: push the bundle produced by
@@ -456,6 +471,13 @@ operation non-interactively, preserving locally modified configuration
 files on conflict.
 The operation type is read from the state file written by
 .BR \-\-fetch .
+Fails immediately if the download phase did not complete successfully
+(i.e. the
+.B downloaded
+flag in
+.B state.json
+is not set), preventing an install attempt with a potentially
+incomplete bundle.
 Cannot be combined with operation flags.
 
 .SH GLOBAL OPTIONS

@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.24.1 -->
-<!-- CreationDate: Sun May  3 22:13:17 2026 -->
+<!-- CreationDate: Wed May  6 23:00:53 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -422,19 +422,23 @@ needed.</p>
 
 
 <p>Reboot the remote machine after a successful operation.
-<b>Warning:</b> when used with <b>--hosts-list</b> and some
-hosts act as SSH jumphosts for others in the list, exercise
-caution with ordering. The tool processes hosts sequentially
-and has no knowledge of jump topology. If a jumphost is
-rebooted and the very next host in the list routes through
-it, the SSH tunnel may drop mid-operation (mid-transfer or
-mid <b>apt-get upgrade</b>) leaving the remote in an unknown
-state &mdash; the remote process may continue running
-unattended while the tool reports an error. Place all hosts
-that route through a jumphost <b>before</b> that jumphost in
-the list so it is rebooted last; or avoid <b>--reboot</b>
-with mixed topologies altogether and reboot manually in
-dependency order after the batch completes.</p></td></tr>
+Can also be used standalone (without any operation flag) to
+reboot one or more hosts without performing any other
+operation. Cannot be combined with <b>--fetch</b> or
+<b>--download</b>. <b>Warning:</b> when used with
+<b>--hosts-list</b> and some hosts act as SSH jumphosts for
+others in the list, exercise caution with ordering. The tool
+processes hosts sequentially and has no knowledge of jump
+topology. If a jumphost is rebooted and the very next host
+in the list routes through it, the SSH tunnel may drop
+mid-operation (mid-transfer or mid <b>apt-get upgrade</b>)
+leaving the remote in an unknown state &mdash; the remote
+process may continue running unattended while the tool
+reports an error. Place all hosts that route through a
+jumphost <b>before</b> that jumphost in the list so it is
+rebooted last; or avoid <b>--reboot</b> with mixed
+topologies altogether and reboot manually in dependency
+order after the batch completes.</p></td></tr>
 </table>
 
 <p style="margin-left:6%;"><b>--work-dir DIR</b></p>
@@ -569,8 +573,11 @@ Cannot be combined with <b>--fetch</b>, <b>--download</b> or
 <p>Display the pipeline status of local runs for the given
 host(s). For each timestamped operation directory shows the
 date, operation type, and whether the fetch, download and
-install phases have completed. Reads only local state; no
-SSH connection is made.</p></td></tr>
+install phases have completed. Download completion is
+confirmed via a flag in <b>state.json</b> written only when
+the fetcher exits without errors, not merely by the presence
+of a <b>bundle.zip</b> file. Reads only local state; no SSH
+connection is made.</p></td></tr>
 </table>
 
 <p style="margin-left:6%; margin-top: 1em">In a batch run,
@@ -627,7 +634,10 @@ Intended for use on a good internet connection after
 date the signature will be empty and the command exits
 cleanly with a &quot;nothing to do&quot; message. Use
 <b>--force</b> to overwrite an existing bundle from a
-previous run.</p></td></tr>
+previous run. If any files fail to download, the failure
+summary includes the error reason and distinguishes
+transient network failures (which may succeed on retry) from
+permanent ones (404).</p></td></tr>
 </table>
 
 <p style="margin-left:6%;"><b>--finish-install</b></p>
@@ -638,7 +648,11 @@ produced by <b>--download</b> to the remote, install it with
 <b>apt-get</b> operation non-interactively, preserving
 locally modified configuration files on conflict. The
 operation type is read from the state file written by
-<b>--fetch</b>. Cannot be combined with operation flags.</p>
+<b>--fetch</b>. Fails immediately if the download phase did
+not complete successfully (i.e. the <b>downloaded</b> flag
+in <b>state.json</b> is not set), preventing an install
+attempt with a potentially incomplete bundle. Cannot be
+combined with operation flags.</p>
 
 <h2>GLOBAL OPTIONS
 <a name="GLOBAL OPTIONS"></a>
