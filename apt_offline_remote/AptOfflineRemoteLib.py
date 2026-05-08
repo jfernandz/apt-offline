@@ -18,7 +18,7 @@ from apt_offline_core.AptOfflineSSHLib import (
     _transfer_put,
 )
 
-_REMOTE_CACHE = ".cache/apt-offline"
+_REMOTE_CACHE = ".cache/apt-offline-remote"
 _OP_LABELS = {"upd": "update", "upg": "upgrade", "dup": "dist-upgrade", "ipk": "install-pkgs"}
 _GREEN = "\033[32m"
 _RED = "\033[31m"
@@ -189,9 +189,9 @@ def _remote_single(host, args, log):
     if args.work_dir:
         base_dir = args.work_dir
     elif args.temp:
-        base_dir = "/tmp/apt-offline"
+        base_dir = "/tmp/apt-offline-remote"
     else:
-        base_dir = os.path.expanduser("~/.cache/apt-offline")
+        base_dir = os.path.expanduser("~/.cache/apt-offline-remote")
     work_dir = os.path.join(base_dir, host)
 
     if args.status:
@@ -434,10 +434,23 @@ def remote(args):
         log.err("Cannot specify both SSH_HOST and --hosts-list\n")
         sys.exit(1)
     if not args.remote_host and not args.hosts_list:
-        fallback = os.path.join(args.work_dir, "hosts.list") if args.work_dir else None
-        if fallback and os.path.isfile(fallback):
-            args.hosts_list = fallback
-            log.msg("==> Using hosts list: %s\n" % fallback)
+        work_dir_base = args.work_dir or os.path.expanduser("~/.cache/apt-offline-remote")
+        fallback_list = os.path.join(work_dir_base, "hosts.list")
+        if os.path.isfile(fallback_list):
+            args.hosts_list = fallback_list
+            log.msg("==> Using hosts list: %s\n" % fallback_list)
+        elif os.path.isdir(work_dir_base):
+            _excluded = {"pkg-cache", "metadata-cache"}
+            discovered = sorted([
+                d for d in os.listdir(work_dir_base)
+                if os.path.isdir(os.path.join(work_dir_base, d)) and d not in _excluded
+            ])
+            if discovered:
+                log.msg("==> Auto-discovered hosts from %s: %s\n" % (work_dir_base, ", ".join(discovered)))
+                args.remote_host = discovered
+            else:
+                log.err("Must specify either SSH_HOST or --hosts-list\n")
+                sys.exit(1)
         else:
             log.err("Must specify either SSH_HOST or --hosts-list\n")
             sys.exit(1)
@@ -471,9 +484,9 @@ def remote(args):
     if args.work_dir:
         base_dir = args.work_dir
     elif args.temp:
-        base_dir = "/tmp/apt-offline"
+        base_dir = "/tmp/apt-offline-remote"
     else:
-        base_dir = os.path.expanduser("~/.cache/apt-offline")
+        base_dir = os.path.expanduser("~/.cache/apt-offline-remote")
 
     clean_pkg_cache = args.clean_pkg_cache or args.clean_cache
     clean_metadata_cache = args.clean_metadata_cache or args.clean_cache
@@ -599,7 +612,7 @@ def register_subparser(subparsers, global_options):
     work_dir_group.add_argument(
         "--work-dir",
         dest="work_dir",
-        help="Local base directory for sig/bundle files (default: ~/.cache/apt-offline)",
+        help="Local base directory for sig/bundle files (default: ~/.cache/apt-offline-remote)",
         action="store",
         type=str,
         default=None,
@@ -608,7 +621,7 @@ def register_subparser(subparsers, global_options):
     work_dir_group.add_argument(
         "--temp",
         dest="temp",
-        help="Use /tmp/apt-offline as the local working directory",
+        help="Use /tmp/apt-offline-remote as the local working directory",
         action="store_true",
         default=False,
     )
@@ -651,7 +664,7 @@ def register_subparser(subparsers, global_options):
     parser_remote.add_argument(
         "--clean-remote",
         dest="clean_remote",
-        help="Remove ~/.cache/apt-offline on the remote host(s)",
+        help="Remove ~/.cache/apt-offline-remote on the remote host(s)",
         action="store_true",
         default=False,
     )
